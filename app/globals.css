@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-surface text-ink font-sans;
+  background-image: radial-gradient(circle at 1px 1px, rgba(7, 61, 48, 0.05) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+h1, h2, h3 {
+  @apply font-display;
+}
+
+@layer components {
+  /* Panel/kartu dasar — dipakai di semua tabel & blok konten */
+  .panel {
+    @apply bg-white border border-line/60 rounded-2xl shadow-panel transition-shadow duration-200;
+  }
+  .panel:hover {
+    @apply shadow-lift;
+  }
+
+  .panel-head {
+    @apply flex items-center gap-2 px-5 py-4 border-b border-line text-sm font-semibold text-ink bg-gradient-to-b from-surface to-white rounded-t-2xl;
+  }
+
+  /* Chip ikon berwarna di kartu statistik */
+  .icon-chip {
+    @apply w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-sm ring-1 ring-black/5;
+  }
+
+  /* Tombol utama — dipakai di semua aksi primer (submit, generate, simpan) */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 text-white text-sm font-medium rounded-lg px-4 py-2 shadow-button
+           bg-gradient-to-b from-primary-500 to-primary-700
+           hover:from-primary-600 hover:to-primary-800 hover:-translate-y-0.5 hover:shadow-lift
+           active:translate-y-0 active:shadow-button
+           transition-all duration-150;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 text-sm font-medium rounded-lg px-4 py-2 border border-line bg-white text-ink
+           hover:bg-surface hover:-translate-y-0.5 hover:shadow-card
+           active:translate-y-0
+           transition-all duration-150;
+  }
+
+  /* Badge status kepatuhan */
+  .badge-status {
+    @apply inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full shadow-sm ring-1 ring-black/5;
+  }
+  .badge-sudah-bayar { @apply bg-gradient-to-b from-emerald-50 to-emerald-100 text-emerald-700; }
+  .badge-masih-aktif { @apply bg-gradient-to-b from-amber-50 to-amber-100 text-amber-700; }
+  .badge-belum-bayar { @apply bg-gradient-to-b from-red-50 to-red-100 text-red-700; }
+  .badge-luar-daerah { @apply bg-gradient-to-b from-gray-50 to-gray-100 text-gray-600; }
+
+  .table-clean thead th {
+    @apply text-left text-xs font-semibold text-muted uppercase tracking-wide px-4 py-3 bg-surface border-b border-line;
+  }
+  .table-clean tbody td {
+    @apply px-4 py-3 text-sm border-t border-line/70;
+  }
+  .table-clean tbody tr {
+    @apply transition-colors duration-100;
+  }
+  .table-clean tbody tr:nth-child(even) {
+    @apply bg-surface/40;
+  }
+  .table-clean tbody tr:hover {
+    @apply bg-primary-50/60;
+  }
+}
