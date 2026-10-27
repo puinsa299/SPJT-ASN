@@ -24,6 +24,19 @@ const HEADER_MAP: Record<string, string> = {
   "tg_akhir_pkb": "tg_akhir_pkb",
   "tg_bayar": "tg_bayar",
   "bea_pkb_pok": "bea_pkb_pok",
+  // Kode Merk BPKAD — dipakai utk cocokkan ke tabel NJKB. Nama kolom persis
+  // di file BPKAD belum dipastikan, jadi beberapa kemungkinan nama umum
+  // ditampung di sini. Kalau nama kolom di file kamu beda, tambahkan di
+  // sini (atau kasih tau aku nama persisnya).
+  "kode merk": "kode_merk",
+  "kd_merek_kb": "kode_merk",
+  "kd_merk_kb": "kode_merk",
+  "kd merk": "kode_merk",
+  // Tanggal awal STNK — dipakai utk hitung ulang STNK & Plat (PNBP, 5 tahunan).
+  // Belum ada sumber data pasti; kolom ini dibaca KALAU ada, kalau tidak
+  // ketemu STNK & Plat akan tampil Rp 0 di perhitungan (lihat 11_njkb_tagihan.sql).
+  "tanggal awal stnk": "tanggal_awal_stnk",
+  "tg_awal_stnk": "tanggal_awal_stnk",
 };
 
 export async function POST(req: NextRequest) {
@@ -107,6 +120,8 @@ export async function POST(req: NextRequest) {
       merk: cellToString(r.merk) || null,
       model: cellToString(r.model) || null,
       tahun: r.tahun ? Number(cellToNumber(r.tahun)) : null,
+      kode_merk: cellToString(r.kode_merk) || null,
+      tanggal_awal_stnk: cellToDateString(r.tanggal_awal_stnk),
       jatuh_tempo: cellToDateString(r.tanggal_jatuh_tempo) ?? cellToDateString(r.tg_akhir_pkb),
       plat: platFromNopol(nomorPolisi),
       // aturan: pakai Jumlah PKB kalau terisi, kalau kosong pakai bea_pkb_pok
@@ -161,6 +176,8 @@ export async function POST(req: NextRequest) {
     merk: r.merk,
     model: r.model,
     tahun: r.tahun,
+    kode_merk: r.kode_merk,
+    tanggal_awal_stnk: r.tanggal_awal_stnk,
     jatuh_tempo: r.plat === "KT" ? r.jatuh_tempo : null,
   }));
 
