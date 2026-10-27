@@ -12,7 +12,13 @@ import {
   Search,
   ArrowRight,
   MapPinOff,
+  UserX,
+  Coins,
 } from "lucide-react";
+
+function formatRupiahSingkat(n: number) {
+  return `Rp ${n.toLocaleString("id-ID")}`;
+}
 
 export const revalidate = 0;
 
@@ -39,6 +45,11 @@ export default async function DashboardPage() {
     .filter((o) => (o.total_luar_daerah ?? 0) > 0)
     .sort((a, b) => (b.total_luar_daerah ?? 0) - (a.total_luar_daerah ?? 0));
 
+  const opdBelumBalikNama = (statistikOpd ?? [])
+    .filter((o) => (o.total_belum_balik_nama ?? 0) > 0)
+    .sort((a, b) => (b.total_belum_balik_nama ?? 0) - (a.total_belum_balik_nama ?? 0));
+  const totalBelumBalikNama = opdBelumBalikNama.reduce((acc, o) => acc + (o.total_belum_balik_nama ?? 0), 0);
+
   return (
     <div className="space-y-8">
       <div>
@@ -54,6 +65,14 @@ export default async function DashboardPage() {
         <StatCard icon={Database} tone="slate" label="Total kendaraan terdata" value={cards?.total_kendaraan_terdata ?? "-"} />
         <StatCard icon={CircleCheck} tone="green" label="Sudah bayar (periode berjalan)" value={cards?.sudah_bayar_periode_berjalan ?? "-"} />
         <StatCard icon={MapPinOff} tone="slate" label="Kendaraan luar daerah" value={cards?.total_kendaraan_non_kt ?? "-"} hint="plat Non-KT" />
+        <StatCard icon={UserX} tone="amber" label="Belum balik nama" value={totalBelumBalikNama} />
+        <StatCard
+          icon={Coins}
+          tone="red"
+          label="Potensi tunggakan Pokok PKB"
+          value={formatRupiahSingkat(cards?.potensi_tunggakan_pokok_pkb ?? 0)}
+          hint={`${cards?.jumlah_kendaraan_menunggak ?? 0} kendaraan menunggak`}
+        />
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
@@ -187,6 +206,54 @@ export default async function DashboardPage() {
               <tr>
                 <td colSpan={3} className="text-center text-muted py-6">
                   Tidak ada kendaraan luar daerah tercatat
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {!isAdmin && (
+          <p className="text-xs text-muted/70 px-4 py-3 border-t border-line">
+            Klik nama OPD untuk melihat detail — perlu login admin.
+          </p>
+        )}
+      </div>
+
+      {/* List OPD dengan kendaraan belum balik nama */}
+      <div className="panel">
+        <div className="panel-head">
+          <UserX size={16} className="text-primary-600" />
+          Kendaraan belum balik nama per OPD
+        </div>
+        <table className="w-full table-clean">
+          <thead>
+            <tr>
+              <th>Nama OPD</th>
+              <th className="text-right">Jumlah belum balik nama</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {opdBelumBalikNama.map((o) => (
+              <tr key={o.opd_id}>
+                <td>
+                  <Link href={opdHref(o.opd_id)} className="hover:text-primary-700 font-medium">
+                    {o.nama_opd}
+                  </Link>
+                </td>
+                <td className="text-right">
+                  <span className="badge-status badge-belum-bayar">{o.total_belum_balik_nama}</span>
+                </td>
+                <td className="text-right">
+                  <Link href={opdHref(o.opd_id)} className="text-primary-600">
+                    <ArrowRight size={14} className="inline" />
+                  </Link>
+                </td>
+              </tr>
+            ))}
+            {opdBelumBalikNama.length === 0 && (
+              <tr>
+                <td colSpan={3} className="text-center text-muted py-6">
+                  Tidak ada kendaraan belum balik nama tercatat
                 </td>
               </tr>
             )}
