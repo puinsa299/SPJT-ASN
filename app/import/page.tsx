@@ -1,4 +1,4 @@
-import { Database, Receipt, ClipboardEdit, Tag, Upload, CheckCircle2 } from "lucide-react";
+import { Database, Receipt, ClipboardEdit, Tag, Upload, CheckCircle2, Calculator } from "lucide-react";
 
 const IMPORT_TYPES = [
   {
@@ -38,6 +38,9 @@ export default function ImportPage({
     opd_baru?: string;
     dicocokkan?: string;
     diabaikan?: string;
+    belum_balik_nama?: string;
+    jumlah?: string;
+    kategori?: string;
   };
 }) {
   return (
@@ -75,10 +78,48 @@ export default function ImportPage({
               {searchParams.dicocokkan} nopol cocok dengan database, {searchParams.bayar_baru} pembayaran
               baru tercatat. {searchParams.diabaikan} nopol diabaikan (tidak ditemukan di database — bukan
               kendaraan ASN terdata).
+              {Number(searchParams.belum_balik_nama) > 0 && (
+                <> {searchParams.belum_balik_nama} kendaraan terdeteksi belum balik nama (nama di Samsat beda dari data kita) — cek di menu Data Kendaraan.</>
+              )}
             </p>
           </div>
         </div>
       )}
+
+      {searchParams.sukses === "njkb" && (
+        <div className="panel p-4 flex items-start gap-3 border-emerald-200 bg-emerald-50">
+          <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+          <div className="text-sm text-emerald-800">
+            <p className="font-medium">Import tabel NJKB berhasil.</p>
+            <p className="text-emerald-700">
+              {searchParams.jumlah} baris NJKB tersimpan dari {searchParams.kategori} kategori kendaraan.
+              Pokok PKB kendaraan akan otomatis terhitung ulang (live) berdasarkan tabel ini.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Tabel NJKB — form khusus, timpa seluruh isi setiap kali diupload */}
+      <div className="panel p-5">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="icon-chip bg-primary-100 text-primary-700 w-9 h-9">
+            <Calculator size={16} />
+          </div>
+          <h2 className="text-sm font-semibold">Tabel NJKB (Pergub)</h2>
+        </div>
+        <p className="text-xs text-muted mb-4">
+          Lampiran NJKB resmi (satu sheet per jenis kendaraan: Sedan, Jeep, Minibus, Pickup, Truck,
+          Roda 2, dst). Dipakai untuk menghitung otomatis Pokok PKB, Opsen, Denda PKB/Opsen, dan
+          SWDKLLJ di dashboard &amp; SPJT. Aman diulang — tiap upload menimpa seluruh isi tabel NJKB
+          dengan data terbaru dari file.
+        </p>
+        <form action="/api/import/njkb" method="post" encType="multipart/form-data" className="space-y-3">
+          <input type="file" name="file" accept=".xlsx,.xls" className="text-sm w-full" required />
+          <button className="btn-primary">
+            <Upload size={14} /> Import tabel NJKB
+          </button>
+        </form>
+      </div>
 
       {/* Database Master — form khusus, ada pilihan kategori */}
       <div className="panel p-5">
