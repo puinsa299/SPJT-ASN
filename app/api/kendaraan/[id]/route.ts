@@ -17,6 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const model = formData.get("model") as string;
   const tahun = formData.get("tahun") ? Number(formData.get("tahun")) : null;
   const jatuh_tempo = (formData.get("jatuh_tempo") as string) || null;
+  const warna_plat = (formData.get("warna_plat") as string) || null;
 
   await supabase
     .from("kendaraan")
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       model,
       tahun,
       jatuh_tempo,
+      warna_plat,
     })
     .eq("id", params.id);
 

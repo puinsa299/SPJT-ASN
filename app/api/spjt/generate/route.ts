@@ -1,175 +1,160 @@
 import { NextRequest, NextResponse } from "next/server";
-import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
-import { cellToNumber, cellToString } from "@/lib/excel-helpers";
+import { buatDocx } from "@/lib/surat/docx";
+import { buatPdf, hitungLembarLampiran } from "@/lib/surat/pdf";
+import {
+  BarisLampiran,
+  InfoPemutihan,
+  JenisSurat,
+  SuratData,
+  gabungSetelan,
+  namaBerkas,
+} from "@/lib/surat/util";
 
-// ----------------------------------------------------------------------------
-// Import "Lampiran NJKB" (Pergub) — satu sheet per jenis/kategori kendaraan.
-// Posisi header kolom BERBEDA-BEDA antar sheet (baris & kolom bisa beda),
-// jadi header dicari dengan cara scan baris, bukan asumsi posisi tetap.
-// Sheet NJUB (Nilai Jual Ubah Bentuk) dan sheet bantu dilewati.
-// ----------------------------------------------------------------------------
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-const KOLOM_WAJIB = ["KODE MERK", "MERK", "TYPE", "TAHUN BUAT", "NJKB", "BOBOT", "DP PKB"];
+const n = (v: unknown) => Number(v ?? 0) || 0;
 
-function namaKategoriDariSheet(namaSheet: string): string | null {
-  const bersih = namaSheet.replace(/^\s*\d+[.,]\s*/, "").trim();
-  if (!bersih) return null;
-  if (/njub/i.test(namaSheet)) return null; // lewati sheet Nilai Jual Ubah Bentuk
-  return bersih.toUpperCase();
-}
-
-function normalizeTeks(t: string | null | undefined): string {
-  return (t ?? "")
-    .toString()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, " ")
-    .trim();
-}
-
-// Cari baris header dalam N baris pertama sebuah sheet: baris yang memuat
-// (minimal) semua nama kolom wajib di atas, posisi kolom boleh beda-beda.
-function cariHeader(ws: ExcelJS.Worksheet, maxBarisCek = 30): { rowNumber: number; colMap: Record<string, number> } | null {
-  for (let r = 1; r <= Math.min(maxBarisCek, ws.rowCount); r++) {
-    const row = ws.getRow(r);
-    const colMap: Record<string, number> = {};
-    row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-      const key = cellToString(cell.value).toUpperCase().trim();
-      if (KOLOM_WAJIB.includes(key)) colMap[key] = colNumber;
-    });
-    if (KOLOM_WAJIB.every((k) => colMap[k] !== undefined)) {
-      return { rowNumber: r, colMap };
-    }
+// supabase-js memuat filter .in() di URL, jadi daftar id dipecah per 100
+async function perPotongan<T>(ids: string[], ambil: (potong: string[]) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
+  const hasil: T[] = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data } = await ambil(ids.slice(i, i + 100));
+    if (data) hasil.push(...data);
   }
-  return null;
+  return hasil;
 }
 
 export async function POST(req: NextRequest) {
+  const q = req.nextUrl.searchParams;
+  const opdId = q.get("opd_id");
+  const jenis: JenisSurat = q.get("jenis")?.toUpperCase() === "STPD" ? "STPD" : "SPJT";
+  const format = q.get("format")?.toLowerCase() === "pdf" ? "pdf" : "docx";
+  if (!opdId) return NextResponse.json({ error: "opd_id wajib diisi" }, { status: 400 });
+
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const formData = await req.formData();
-  const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.json({ error: "File wajib diupload" }, { status: 400 });
+  const [{ data: opd }, { data: setelanRow }, { data: statusRows }, { data: programAktif }] = await Promise.all([
+    supabase.from("opd").select("id, nama_opd").eq("id", opdId).single(),
+    supabase.from("pengaturan_surat").select("*").eq("jenis", jenis).maybeSingle(),
+    supabase.from("v_kendaraan_status").select("kendaraan_id, masuk_periode_spjt").eq("opd_id", opdId),
+    supabase.from("v_pemutihan_aktif").select("nama, tanggal_mulai, tanggal_selesai").maybeSingle(),
+  ]);
+  if (!opd) return NextResponse.json({ error: "Instansi tidak ditemukan" }, { status: 404 });
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer as any);
+  const semuaId = (statusRows ?? []).map((r) => r.kendaraan_id as string);
+  const tagihanAll = await perPotongan(semuaId, (p) => supabase.from("v_tagihan_pkb").select("*").in("kendaraan_id", p));
+  const tagihanMap = new Map(tagihanAll.map((t) => [t.kendaraan_id as string, t]));
 
-  type BarisNjkb = {
-    kategori: string;
-    kode_merk: string | null;
-    merk: string | null;
-    type: string | null;
-    merk_norm: string;
-    type_norm: string;
-    tahun_buat: number;
-    njkb: number;
-    bobot: number;
-    dp_pkb: number | null;
-  };
+  // SPJT: kendaraan yang masuk periode SPJT. STPD: kendaraan yang sudah menunggak (>= 1 tahun).
+  const terpilih =
+    jenis === "SPJT"
+      ? (statusRows ?? []).filter((r) => r.masuk_periode_spjt).map((r) => r.kendaraan_id as string)
+      : semuaId.filter((id) => n(tagihanMap.get(id)?.tahun_menunggak) >= 1);
 
-  const semuaBaris: BarisNjkb[] = [];
-  const sheetDiproses: { nama: string; kategori: string; jumlah: number }[] = [];
-  const sheetDilewati: string[] = [];
-
-  for (const ws of workbook.worksheets) {
-    const kategori = namaKategoriDariSheet(ws.name);
-    if (!kategori) {
-      sheetDilewati.push(ws.name);
-      continue;
-    }
-
-    const header = cariHeader(ws);
-    if (!header) {
-      sheetDilewati.push(`${ws.name} (header tidak ditemukan)`);
-      continue;
-    }
-
-    let jumlahSheet = 0;
-    const { rowNumber: headerRow, colMap } = header;
-
-    ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      if (rowNumber <= headerRow) return;
-
-      const kodeMerk = cellToString(row.getCell(colMap["KODE MERK"]).value) || null;
-      const merk = cellToString(row.getCell(colMap["MERK"]).value) || null;
-      const type = cellToString(row.getCell(colMap["TYPE"]).value) || null;
-      const tahunBuat = cellToNumber(row.getCell(colMap["TAHUN BUAT"]).value);
-      const njkb = cellToNumber(row.getCell(colMap["NJKB"]).value);
-      const bobot = cellToNumber(row.getCell(colMap["BOBOT"]).value);
-      const dpPkb = cellToNumber(row.getCell(colMap["DP PKB"]).value);
-
-      // baris tanpa tahun/NJKB/merk dianggap bukan data (judul ulang, baris kosong, dll)
-      if (!tahunBuat || njkb === null || !merk) return;
-
-      semuaBaris.push({
-        kategori,
-        kode_merk: kodeMerk,
-        merk,
-        type,
-        merk_norm: normalizeTeks(merk),
-        type_norm: normalizeTeks(type),
-        tahun_buat: Math.round(tahunBuat),
-        njkb,
-        bobot: bobot ?? 1,
-        dp_pkb: dpPkb,
-      });
-      jumlahSheet++;
-    });
-
-    sheetDiproses.push({ nama: ws.name, kategori, jumlah: jumlahSheet });
-  }
-
-  if (semuaBaris.length === 0) {
+  if (terpilih.length === 0) {
     return NextResponse.json(
-      { error: "Tidak ada baris NJKB yang terbaca. Pastikan file sesuai format lampiran NJKB Pergub." },
+      { error: jenis === "SPJT" ? "Tidak ada kendaraan yang masuk periode SPJT untuk instansi ini" : "Tidak ada kendaraan yang menunggak untuk instansi ini" },
       { status: 400 }
     );
   }
 
-  // Kalau ada kode_merk yang dobel persis sama (kode_merk + tahun_buat sama,
-  // bisa terjadi antar sheet kalau filenya tumpang-tindih) -> pakai yang terakhir.
-  const dedupKey = (b: BarisNjkb) => `${b.kode_merk ?? "null"}__${b.tahun_buat}`;
-  const dedupMap = new Map<string, BarisNjkb>();
-  semuaBaris.forEach((b) => dedupMap.set(dedupKey(b), b));
-  const barisFinal = Array.from(dedupMap.values());
+  const kendaraan = await perPotongan(terpilih, (p) =>
+    supabase
+      .from("kendaraan")
+      .select("id, nomor_polisi_display, nama_pemilik, nama_pemilik_transaksi, no_rangka, jatuh_tempo")
+      .in("id", p)
+  );
 
-  // ---- Timpa seluruh isi njkb_ref dengan data baru (aman diulang) ----
-  await supabase.from("njkb_ref").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+  const pemutihanAktif = !!programAktif;
+  let totalPotongan = 0;
+  const baris: BarisLampiran[] = kendaraan.map((k) => {
+    const t = tagihanMap.get(k.id);
+    const pakai = pemutihanAktif && t?.pemutihan_aktif;
+    const v = (normal: string, setelah: string) => n(t?.[pakai ? setelah : normal]);
+    totalPotongan += n(t?.total_potongan_pemutihan);
+    return {
+      nopol: k.nomor_polisi_display ?? "",
+      nama: k.nama_pemilik_transaksi || k.nama_pemilik || "",
+      rangka: k.no_rangka ?? "",
+      jatuhTempo: k.jatuh_tempo ?? null,
+      pokok: v("total_pokok_pkb", "p_pokok_pkb"),
+      dendaPkb: v("total_denda_pkb", "p_denda_pkb"),
+      sanksi: v("total_sanksi_adm", "p_sanksi_adm"),
+      opsen: v("total_opsen", "p_opsen"),
+      dendaOpsen: v("total_denda_opsen", "p_denda_opsen"),
+      swdkllj: v("total_swdkllj", "p_swdkllj"),
+      dendaSwdkllj: v("total_denda_swdkllj", "p_denda_swdkllj"),
+      stnk: v("total_stnk", "p_stnk"),
+      plat: v("total_plat", "p_plat"),
+      total: v("total_tagihan_normal", "total_tagihan_setelah_pemutihan"),
+    };
+  });
+  baris.sort((a, b) => (a.jatuhTempo ?? "9").localeCompare(b.jatuhTempo ?? "9") || a.nopol.localeCompare(b.nopol));
 
-  const CHUNK = 1000;
-  for (let i = 0; i < barisFinal.length; i += CHUNK) {
-    const chunk = barisFinal.slice(i, i + CHUNK);
-    const { error } = await supabase.from("njkb_ref").insert(chunk);
-    if (error) {
-      return NextResponse.json(
-        { error: `Gagal menyimpan data NJKB pada baris ke-${i}: ${error.message}` },
-        { status: 500 }
-      );
+  const pemutihan: InfoPemutihan = programAktif
+    ? { nama: programAktif.nama, mulai: programAktif.tanggal_mulai, selesai: programAktif.tanggal_selesai, totalPotongan }
+    : null;
+
+  const data: SuratData = {
+    jenis,
+    instansi: opd.nama_opd,
+    tanggal: new Date(),
+    setelan: gabungSetelan(jenis, setelanRow),
+    baris,
+    pemutihan,
+    lembarLampiran: 1,
+  };
+  data.lembarLampiran = await hitungLembarLampiran(data);
+
+  let buffer: Buffer;
+  if (format === "pdf") buffer = (await buatPdf(data)).buffer;
+  else buffer = await buatDocx(data);
+
+  // ---- Riwayat (hanya SPJT). Unduhan Word + PDF dalam 10 menit dihitung satu kali. ----
+  if (jenis === "SPJT") {
+    const batas = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data: terakhir } = await supabase
+      .from("riwayat_spjt")
+      .select("id")
+      .eq("opd_id", opdId)
+      .gte("created_at", batas)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!terakhir) {
+      const { data: riwayat } = await supabase.from("riwayat_spjt").insert({ opd_id: opdId, status: "Sudah Dibuat" }).select().single();
+      if (riwayat) {
+        const idPer = new Map(kendaraan.map((k) => [k.nomor_polisi_display, k.id]));
+        await supabase.from("spjt_kendaraan").insert(
+          baris.map((b) => ({
+            riwayat_spjt_id: riwayat.id,
+            kendaraan_id: idPer.get(b.nopol),
+            pokok_pkb_snapshot: b.pokok,
+            opsen_snapshot: b.opsen,
+            swdkllj_snapshot: b.swdkllj,
+            total_snapshot: b.total,
+          }))
+        );
+        await supabase.from("activity_log").insert({
+          jenis_aksi: "generate_spjt",
+          deskripsi: `Generate SPJT untuk ${opd.nama_opd} (${baris.length} kendaraan)`,
+          referensi_id: riwayat.id,
+          referensi_tabel: "riwayat_spjt",
+        });
+      }
     }
   }
 
-  await supabase.from("import_log").insert({
-    jenis_import: "Database Master",
-    nama_file: file.name,
-    jumlah_ditambah: barisFinal.length,
-    catatan: `Import tabel NJKB — ${sheetDiproses.map((s) => `${s.kategori}: ${s.jumlah}`).join(", ")}`,
-    created_by: user.email,
+  const nama = namaBerkas(jenis, opd.nama_opd, format);
+  return new NextResponse(new Uint8Array(buffer), {
+    status: 200,
+    headers: {
+      "Content-Type": format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "Content-Disposition": `attachment; filename="${nama}"`,
+      "Cache-Control": "no-store",
+    },
   });
-
-  await supabase.from("activity_log").insert({
-    jenis_aksi: "import_njkb",
-    deskripsi: `Import tabel NJKB: ${barisFinal.length} baris dari ${sheetDiproses.length} kategori (sheet dilewati: ${sheetDilewati.join(", ") || "-"})`,
-    created_by: user.email,
-  });
-
-  return NextResponse.redirect(
-    new URL(
-      `/import?sukses=njkb&jumlah=${barisFinal.length}&kategori=${sheetDiproses.length}`,
-      req.url
-    ),
-    { status: 303 }
-  );
 }

@@ -22,17 +22,17 @@ import {
 } from "lucide-react";
 
 const MENU = [
-  { href: "/", label: "Dashboard", icon: LayoutGrid },
-  { href: "/opd", label: "Data OPD", icon: Building2 },
-  { href: "/kendaraan", label: "Data Kendaraan", icon: Truck },
-  { href: "/spjt-hari-ini", label: "SPJT Hari Ini", icon: CalendarCheck },
-  { href: "/statistik", label: "Statistik", icon: BarChart3 },
-  { href: "/profiling", label: "Profiling", icon: IdCard },
-  { href: "/riwayat-spjt", label: "Riwayat SPJT", icon: History },
-  { href: "/histori", label: "Histori Data", icon: FileClock },
-  { href: "/import", label: "Import Data", icon: Upload },
-  { href: "/export", label: "Export Data", icon: Download },
-  { href: "/pengaturan", label: "Pengaturan", icon: Settings },
+  { href: "/", label: "Dashboard", warna: "bg-indigo-500", icon: LayoutGrid },
+  { href: "/opd", label: "Data OPD", warna: "bg-sky-500", icon: Building2 },
+  { href: "/kendaraan", label: "Data Kendaraan", warna: "bg-violet-500", icon: Truck },
+  { href: "/spjt-hari-ini", label: "SPJT Hari Ini", warna: "bg-amber-500", icon: CalendarCheck },
+  { href: "/statistik", label: "Statistik", warna: "bg-emerald-500", icon: BarChart3 },
+  { href: "/profiling", label: "Profiling", warna: "bg-pink-500", icon: IdCard },
+  { href: "/riwayat-spjt", label: "Riwayat SPJT", warna: "bg-orange-500", icon: History },
+  { href: "/histori", label: "Histori Data", warna: "bg-teal-500", icon: FileClock },
+  { href: "/import", label: "Import Data", warna: "bg-blue-500", icon: Upload },
+  { href: "/export", label: "Export Data", warna: "bg-lime-600", icon: Download },
+  { href: "/pengaturan", label: "Pengaturan", warna: "bg-slate-500", icon: Settings },
 ];
 
 export default function Sidebar({ isAdmin }: { isAdmin: boolean }) {
@@ -48,11 +48,11 @@ export default function Sidebar({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <aside
-      className="w-64 shrink-0 min-h-screen flex flex-col text-white/90 shadow-lift relative z-20"
-      style={{ background: "linear-gradient(180deg, #073d30, #0f8a6a)" }}
+      className="w-64 shrink-0 min-h-screen flex flex-col text-white/90 shadow-lift relative z-20 bg-primary-900"
+      
     >
       <div className="px-5 py-5 flex items-center gap-3 border-b border-white/10">
-        <div className="w-10 h-10 rounded-xl bg-white text-primary-700 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-xl bg-pink-500 text-white flex items-center justify-center">
           <CarFront size={20} />
         </div>
         <div>
@@ -72,9 +72,9 @@ export default function Sidebar({ isAdmin }: { isAdmin: boolean }) {
               <Link
                 key={item.href}
                 href={`/login?redirect=${item.href}`}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/45 hover:bg-white/5 hover:text-white/70"
+                className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/45 hover:bg-white/5 hover:text-white/70"
               >
-                <Icon size={17} />
+                <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-white ${item.warna} opacity-50`}><Icon size={15} /></span>
                 <span className="flex-1">{item.label}</span>
                 <Lock size={12} />
               </Link>
@@ -85,13 +85,15 @@ export default function Sidebar({ isAdmin }: { isAdmin: boolean }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+              className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all hover:translate-x-0.5 ${
                 active
-                  ? "bg-white/15 text-white font-medium"
+                  ? "bg-white/15 text-white font-semibold"
                   : "text-white/75 hover:bg-white/10 hover:text-white"
               }`}
             >
-              <Icon size={17} />
+              <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-white ${item.warna} transition-transform duration-150 group-hover:scale-110 ${active ? "scale-110 shadow-md" : ""}`}>
+                <Icon size={15} />
+              </span>
               {item.label}
             </Link>
           );
@@ -116,6 +118,7 @@ export default function Sidebar({ isAdmin }: { isAdmin: boolean }) {
             Login admin
           </Link>
         )}
+        <p className="text-center text-[11px] text-white/40 mt-3">© 2026 dibuat oleh Hani</p>
       </div>
     </aside>
   );

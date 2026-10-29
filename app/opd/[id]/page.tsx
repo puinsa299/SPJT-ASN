@@ -65,21 +65,33 @@ export default async function OpdDetailPage({
           >
             Edit OPD
           </a>
-          <form action={`/api/spjt/generate?opd_id=${params.id}`} method="post">
-            <button className="btn-primary">
-              Generate SPJT
-            </button>
+          <form method="post" className="flex flex-wrap gap-2">
+            {[
+              ["SPJT", "docx", "SPJT (Word)"],
+              ["SPJT", "pdf", "SPJT (PDF)"],
+              ["STPD", "docx", "STPD (Word)"],
+              ["STPD", "pdf", "STPD (PDF)"],
+            ].map(([jenis, format, label]) => (
+              <button
+                key={label}
+                formAction={`/api/spjt/generate?opd_id=${params.id}&jenis=${jenis}&format=${format}`}
+                className={jenis === "SPJT" ? "btn-primary" : "btn-secondary"}
+              >
+                {label}
+              </button>
+            ))}
           </form>
         </div>
       </div>
 
       {/* Ringkasan */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <MiniStat label="Total kendaraan" value={statistik?.total_kendaraan_kt ?? 0} />
         <MiniStat label="Sudah bayar" value={statistik?.sudah_bayar ?? 0} />
         <MiniStat label="Masih aktif" value={statistik?.masih_aktif ?? 0} />
         <MiniStat label="Belum bayar" value={statistik?.belum_bayar ?? 0} />
         <MiniStat label="% Kepatuhan" value={`${statistik?.persentase_kepatuhan ?? 0}%`} />
+        <MiniStat label="Belum balik nama" value={statistik?.total_belum_balik_nama ?? 0} />
       </div>
 
       {/* List kendaraan */}

@@ -94,6 +94,18 @@ export default async function EditKendaraanPage({
             />
           </Field>
 
+          <Field label="Warna plat">
+            <select
+              name="warna_plat"
+              defaultValue={kendaraan.warna_plat ?? ""}
+              className="w-full border border-line rounded-lg px-3 py-2 text-sm bg-white"
+            >
+              <option value="">Belum diisi (dihitung sementara sbg Merah)</option>
+              <option value="Merah">Merah (tarif PKB 0,5%)</option>
+              <option value="Hitam">Hitam (tarif PKB 0,8%)</option>
+            </select>
+          </Field>
+
           <p className="text-xs text-muted">
             Plat (KT/Non KT) otomatis mengikuti 2 huruf depan nomor polisi. Untuk ubah status
             (Dijual/Mutasi/dll), gunakan tombol "Ubah status" di daftar kendaraan.

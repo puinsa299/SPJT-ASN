@@ -1,4 +1,4 @@
-import { Database, Receipt, ClipboardEdit, Tag, Upload, CheckCircle2, Calculator } from "lucide-react";
+import { Database, Receipt, ClipboardEdit, Tag, Upload, CheckCircle2, Calculator, Palette } from "lucide-react";
 
 const IMPORT_TYPES = [
   {
@@ -8,6 +8,13 @@ const IMPORT_TYPES = [
     desc: "Sistem mencocokkan lewat No. Polisi lalu memperbarui status Sudah Bayar/Belum Bayar, tanggal bayar, masa pajak, dan nominal PKB. Riwayat pembayaran tersimpan permanen. Boleh pilih beberapa file sekaligus.",
     action: "/api/import/transaksi",
     multiple: true,
+  },
+  {
+    key: "warna-plat",
+    title: "Warna plat (Merah/Hitam)",
+    icon: Palette,
+    desc: "Isi/koreksi massal warna plat per kendaraan — kolom minimal: Nomor Polisi, Warna Plat (tulis 'Merah' atau 'Hitam'). Dipakai untuk menentukan tarif PKB yang benar (Merah 0,5%, Hitam 0,8%). Aman diulang, nopol yang sama akan menimpa warna sebelumnya.",
+    action: "/api/import/warna-plat",
   },
   {
     key: "status",
@@ -41,6 +48,7 @@ export default function ImportPage({
     belum_balik_nama?: string;
     jumlah?: string;
     kategori?: string;
+    takditemukan?: string;
   };
 }) {
   return (
@@ -99,6 +107,21 @@ export default function ImportPage({
         </div>
       )}
 
+      {searchParams.sukses === "warna-plat" && (
+        <div className="panel p-4 flex items-start gap-3 border-emerald-200 bg-emerald-50">
+          <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+          <div className="text-sm text-emerald-800">
+            <p className="font-medium">Import Warna Plat berhasil.</p>
+            <p className="text-emerald-700">
+              {searchParams.jumlah} kendaraan diupdate warna platnya.
+              {Number(searchParams.takditemukan) > 0 && (
+                <> {searchParams.takditemukan} nomor polisi di file tidak ditemukan di sistem, dilewati.</>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Tabel NJKB — form khusus, timpa seluruh isi setiap kali diupload */}
       <div className="panel p-5">
         <div className="flex items-center gap-2 mb-2">
@@ -109,12 +132,17 @@ export default function ImportPage({
         </div>
         <p className="text-xs text-muted mb-4">
           Lampiran NJKB resmi (satu sheet per jenis kendaraan: Sedan, Jeep, Minibus, Pickup, Truck,
-          Roda 2, dst). Dipakai untuk menghitung otomatis Pokok PKB, Opsen, Denda PKB/Opsen, dan
-          SWDKLLJ di dashboard &amp; SPJT. Aman diulang — tiap upload menimpa seluruh isi tabel NJKB
-          dengan data terbaru dari file.
+          Roda 2, dst), bisa juga file format baru (satu sheet besar berisi semua kategori &amp;
+          tahun). Boleh pilih lebih dari satu file sekaligus (misalnya file lama &amp; file baru
+          bersamaan) — hasilnya akan digabung jadi satu tabel NJKB. Dipakai untuk menghitung otomatis
+          Pokok PKB, Opsen, Denda PKB/Opsen, dan SWDKLLJ di dashboard &amp; SPJT. Aman diulang — tiap
+          upload menimpa seluruh isi tabel NJKB dengan data terbaru dari file yang dipilih.
         </p>
         <form action="/api/import/njkb" method="post" encType="multipart/form-data" className="space-y-3">
-          <input type="file" name="file" accept=".xlsx,.xls" className="text-sm w-full" required />
+          <input type="file" name="file" accept=".xlsx,.xls" multiple className="text-sm w-full" required />
+          <p className="text-[11px] text-muted">
+            Tahan tombol Ctrl (atau Cmd di Mac) saat memilih file untuk upload lebih dari satu file sekaligus.
+          </p>
           <button className="btn-primary">
             <Upload size={14} /> Import tabel NJKB
           </button>

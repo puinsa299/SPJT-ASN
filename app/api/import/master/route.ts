@@ -37,6 +37,12 @@ const HEADER_MAP: Record<string, string> = {
   // ketemu STNK & Plat akan tampil Rp 0 di perhitungan (lihat 11_njkb_tagihan.sql).
   "tanggal awal stnk": "tanggal_awal_stnk",
   "tg_awal_stnk": "tanggal_awal_stnk",
+  // Atribut kendaraan untuk perhitungan SWDKLLJ, STNK/Plat, dan lampiran surat
+  "kd_jenis_kb": "kode_jenis",
+  "jumlah_cc": "cc",
+  "kd_plat": "kd_plat",
+  "no_chasis": "no_rangka",
+  "no rangka": "no_rangka",
 };
 
 export async function POST(req: NextRequest) {
@@ -122,6 +128,10 @@ export async function POST(req: NextRequest) {
       tahun: r.tahun ? Number(cellToNumber(r.tahun)) : null,
       kode_merk: cellToString(r.kode_merk) || null,
       tanggal_awal_stnk: cellToDateString(r.tanggal_awal_stnk),
+      kode_jenis: cellToString(r.kode_jenis).trim().toUpperCase() || null,
+      cc: r.cc !== undefined && r.cc !== null && r.cc !== "" && !Number.isNaN(Number(cellToNumber(r.cc))) ? Math.round(Number(cellToNumber(r.cc))) : null,
+      kd_plat: cellToString(r.kd_plat).trim() || null,
+      no_rangka: cellToString(r.no_rangka).trim() || null,
       jatuh_tempo: cellToDateString(r.tanggal_jatuh_tempo) ?? cellToDateString(r.tg_akhir_pkb),
       plat: platFromNopol(nomorPolisi),
       // aturan: pakai Jumlah PKB kalau terisi, kalau kosong pakai bea_pkb_pok
@@ -178,12 +188,30 @@ export async function POST(req: NextRequest) {
     tahun: r.tahun,
     kode_merk: r.kode_merk,
     tanggal_awal_stnk: r.tanggal_awal_stnk,
+    kode_jenis: r.kode_jenis,
+    cc: r.cc,
+    kd_plat: r.kd_plat,
+    no_rangka: r.no_rangka,
     jatuh_tempo: r.plat === "KT" ? r.jatuh_tempo : null,
   }));
 
-  for (let i = 0; i < kendaraanPayload.length; i += CHUNK) {
-    const chunk = kendaraanPayload.slice(i, i + CHUNK);
-    await supabase.from("kendaraan").upsert(chunk, { onConflict: "nomor_polisi" });
+  // Atribut baru (kode_jenis, cc, kd_plat, no_rangka) HANYA ikut di-upsert kalau terisi di
+  // file, supaya file master lama (tanpa kolom itu) tidak menghapus data yang sudah
+  // dilengkapi dari import transaksi. Baris dikelompokkan menurut kolom yang dikirim
+  // (satu panggilan upsert harus punya kolom seragam).
+  const OPSIONAL = ["kode_jenis", "cc", "kd_plat", "no_rangka"] as const;
+  const kelompok = new Map<string, Record<string, any>[]>();
+  for (const row of kendaraanPayload) {
+    const r: Record<string, any> = { ...row };
+    for (const k of OPSIONAL) if (r[k] === null || r[k] === undefined) delete r[k];
+    const sig = OPSIONAL.filter((k) => k in r).join(",");
+    if (!kelompok.has(sig)) kelompok.set(sig, []);
+    kelompok.get(sig)!.push(r);
+  }
+  for (const rows of kelompok.values()) {
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      await supabase.from("kendaraan").upsert(rows.slice(i, i + CHUNK), { onConflict: "nomor_polisi" });
+    }
   }
 
   // ---- 4. Sinkronkan pembayaran — cek SEMUA baris (bukan cuma kendaraan baru).

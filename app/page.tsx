@@ -75,6 +75,25 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {(cards?.kendaraan_belum_warna_plat ?? 0) > 0 && (
+        <div className="panel p-4 flex items-start gap-3 border-amber-200 bg-amber-50">
+          <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-800">
+            <p className="font-medium">
+              {cards?.kendaraan_belum_warna_plat} kendaraan belum diisi warna plat.
+            </p>
+            <p className="text-amber-700">
+              Untuk sementara dihitung pakai tarif Merah (0,5%) supaya Pokok PKB tidak Rp 0 — isi lewat
+              menu{" "}
+              <Link href="/import" className="font-medium hover:underline">
+                Import Data &gt; Warna plat
+              </Link>{" "}
+              (massal) atau satu-satu lewat Edit Kendaraan, supaya kendaraan plat hitam (0,8%) terhitung benar.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid md:grid-cols-2 gap-6">
         {/* Statistik pembayaran SPJT */}
         <div className="panel">

@@ -17,7 +17,7 @@ export default async function StatistikPage() {
   const [{ data: kendaraanKt }, { data: efektivitas }, { data: realisasi }] = await Promise.all([
     supabase.from("kendaraan").select("jatuh_tempo, opd_id").eq("plat", "KT").eq("status", "Aktif"),
     supabase.from("v_efektivitas_spjt").select("*"),
-    supabase.from("v_realisasi_spjt").select("bulan_realisasi, nominal"),
+    supabase.from("v_realisasi_bulanan").select("bulan_realisasi, nominal, nominal_setelah_spjt, jumlah_transaksi, jumlah_kendaraan").order("bulan_realisasi"),
   ]);
 
   const { data: pembayaranTerakhir } = await supabase
@@ -38,11 +38,9 @@ export default async function StatistikPage() {
 
   const nilaiMap = new Map(pembayaranTerakhir?.map((p) => [p.kendaraan_id, p.total]) ?? []);
 
-  const realisasiPerBulan: Record<string, number> = {};
-  realisasi?.forEach((r) => {
-    const key = r.bulan_realisasi;
-    realisasiPerBulan[key] = (realisasiPerBulan[key] ?? 0) + Number(r.nominal ?? 0);
-  });
+  // Realisasi diambil dari SEMUA transaksi hasil upload (v_realisasi_bulanan), bukan hanya
+  // kendaraan yang sudah di-SPJT, supaya upload realisasi otomatis tampil di sini.
+  const realisasiRows = (realisasi ?? []) as any[];
 
   const bucketCount = { "<1 bulan": 0, "1-3 bulan": 0, ">3 bulan": 0 };
   let sudahBayarSetelahSpjt = 0;
@@ -91,18 +89,28 @@ export default async function StatistikPage() {
             Realisasi aktual pembayaran per bulan
           </div>
           <table className="w-full table-clean">
+            <thead>
+              <tr>
+                <th>Bulan bayar</th>
+                <th className="text-right">Transaksi</th>
+                <th className="text-right">Kendaraan</th>
+                <th className="text-right">Realisasi</th>
+                <th className="text-right">Setelah SPJT</th>
+              </tr>
+            </thead>
             <tbody>
-              {Object.entries(realisasiPerBulan)
-                .sort()
-                .map(([bulan, nominal]) => (
-                  <tr key={bulan}>
-                    <td>{new Date(bulan).toLocaleDateString("id-ID", { month: "long", year: "numeric" })}</td>
-                    <td className="text-right font-medium">Rp {nominal.toLocaleString("id-ID")}</td>
-                  </tr>
-                ))}
-              {Object.keys(realisasiPerBulan).length === 0 && (
+              {realisasiRows.map((r) => (
+                <tr key={r.bulan_realisasi}>
+                  <td>{new Date(r.bulan_realisasi).toLocaleDateString("id-ID", { month: "long", year: "numeric" })}</td>
+                  <td className="text-right">{Number(r.jumlah_transaksi).toLocaleString("id-ID")}</td>
+                  <td className="text-right">{Number(r.jumlah_kendaraan).toLocaleString("id-ID")}</td>
+                  <td className="text-right font-medium">Rp {Number(r.nominal ?? 0).toLocaleString("id-ID")}</td>
+                  <td className="text-right text-muted">Rp {Number(r.nominal_setelah_spjt ?? 0).toLocaleString("id-ID")}</td>
+                </tr>
+              ))}
+              {realisasiRows.length === 0 && (
                 <tr>
-                  <td className="text-center text-muted py-6">Belum ada data realisasi</td>
+                  <td colSpan={5} className="text-center text-muted py-6">Belum ada data realisasi</td>
                 </tr>
               )}
             </tbody>
