@@ -4,6 +4,7 @@
 
 body {
   @apply bg-surface text-ink font-sans;
+  overflow-x: hidden;
 }
 
 h1, h2, h3 {
@@ -13,6 +14,9 @@ h1, h2, h3 {
 @layer components {
   .panel {
     @apply bg-white border border-line rounded-2xl shadow-panel transition-all duration-200;
+  }
+  .panel:has(.table-clean) {
+    overflow-x: auto;
   }
   .panel:hover {
     @apply shadow-lift;
@@ -32,21 +36,21 @@ h1, h2, h3 {
            active:translate-y-0 active:scale-95 transition-all duration-150;
   }
   .btn-secondary {
-    @apply inline-flex items-center gap-2 text-sm font-medium rounded-lg px-4 py-2 border border-primary-200 bg-primary-50 text-primary-700
-           hover:bg-primary-100 hover:-translate-y-0.5 hover:shadow-card
+    @apply inline-flex items-center gap-2 text-sm font-medium rounded-lg px-4 py-2 border border-line bg-white text-ink
+           hover:bg-primary-50 hover:-translate-y-0.5 hover:shadow-card
            active:translate-y-0 active:scale-95 transition-all duration-150;
   }
 
   .badge-status {
     @apply inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full;
   }
-  .badge-sudah-bayar { @apply bg-emerald-100 text-emerald-700; }
-  .badge-masih-aktif { @apply bg-amber-100 text-amber-700; }
-  .badge-belum-bayar { @apply bg-rose-100 text-rose-700; }
+  .badge-sudah-bayar { @apply bg-emerald-50 text-emerald-700; }
+  .badge-masih-aktif { @apply bg-amber-50 text-amber-700; }
+  .badge-belum-bayar { @apply bg-rose-50 text-rose-700; }
   .badge-luar-daerah { @apply bg-slate-100 text-slate-600; }
 
   .table-clean thead th {
-    @apply text-left text-xs font-semibold text-primary-800 uppercase tracking-wide px-4 py-3 bg-primary-50 border-b border-primary-100;
+    @apply text-left text-xs font-semibold text-muted uppercase tracking-wide px-4 py-3 bg-surface border-b border-line;
   }
   .table-clean tbody td {
     @apply px-4 py-3 text-sm border-t border-line;

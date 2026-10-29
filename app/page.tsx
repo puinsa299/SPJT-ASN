@@ -58,7 +58,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Kartu ringkasan atas */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard icon={Building2} tone="teal" label="OPD SPJT hari ini" value={cards?.opd_spjt_hari_ini ?? "-"} />
         <StatCard icon={CarFront} tone="amber" label="Total kendaraan SPJT" value={totalKt} hint="basis plat KT" />
         <StatCard icon={AlertTriangle} tone="red" label="Kendaraan lewat jatuh tempo" value={cards?.kendaraan_lewat_jatuh_tempo ?? "-"} />

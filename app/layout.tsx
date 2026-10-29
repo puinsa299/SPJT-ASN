@@ -30,9 +30,9 @@ export default async function RootLayout({
       <body>
         <div className="flex">
           <Sidebar isAdmin={!!user} />
-          <div className="flex-1 min-h-screen flex flex-col">
+          <div className="flex-1 min-w-0 min-h-screen flex flex-col">
             <Topbar />
-            <main className="flex-1 p-6 max-w-6xl mx-auto w-full">{children}</main>
+            <main className="flex-1 p-6 max-w-7xl mx-auto w-full min-w-0">{children}</main>
           </div>
         </div>
       </body>

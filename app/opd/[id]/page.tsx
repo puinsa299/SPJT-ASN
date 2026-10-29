@@ -85,7 +85,7 @@ export default async function OpdDetailPage({
       </div>
 
       {/* Ringkasan */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <MiniStat label="Total kendaraan" value={statistik?.total_kendaraan_kt ?? 0} />
         <MiniStat label="Sudah bayar" value={statistik?.sudah_bayar ?? 0} />
         <MiniStat label="Masih aktif" value={statistik?.masih_aktif ?? 0} />
@@ -191,9 +191,9 @@ export default async function OpdDetailPage({
 
 function MiniStat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="panel p-3">
-      <p className="text-xs text-muted">{label}</p>
-      <p className="text-lg font-display font-bold">{value}</p>
+    <div className="panel p-3 min-w-0">
+      <p className="text-xs text-muted break-words">{label}</p>
+      <p className="text-lg font-bold break-words">{value}</p>
     </div>
   );
 }
