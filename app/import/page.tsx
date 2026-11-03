@@ -1,14 +1,7 @@
+import ImportBesar from "@/components/ImportBesar";
 import { Database, Receipt, ClipboardEdit, Tag, Upload, CheckCircle2, Calculator, Palette } from "lucide-react";
 
 const IMPORT_TYPES = [
-  {
-    key: "transaksi",
-    title: "Transaksi bulanan",
-    icon: Receipt,
-    desc: "Sistem mencocokkan lewat No. Polisi lalu memperbarui status Sudah Bayar/Belum Bayar, tanggal bayar, masa pajak, dan nominal PKB. Riwayat pembayaran tersimpan permanen. Boleh pilih beberapa file sekaligus.",
-    action: "/api/import/transaksi",
-    multiple: true,
-  },
   {
     key: "warna-plat",
     title: "Warna plat (Merah/Hitam)",
@@ -138,15 +131,24 @@ export default function ImportPage({
           Pokok PKB, Opsen, Denda PKB/Opsen, dan SWDKLLJ di dashboard &amp; SPJT. Aman diulang — tiap
           upload menimpa seluruh isi tabel NJKB dengan data terbaru dari file yang dipilih.
         </p>
-        <form action="/api/import/njkb" method="post" encType="multipart/form-data" className="space-y-3">
-          <input type="file" name="file" accept=".xlsx,.xls" multiple className="text-sm w-full" required />
-          <p className="text-[11px] text-muted">
-            Tahan tombol Ctrl (atau Cmd di Mac) saat memilih file untuk upload lebih dari satu file sekaligus.
-          </p>
-          <button className="btn-primary">
-            <Upload size={14} /> Import tabel NJKB
-          </button>
-        </form>
+        <ImportBesar jenis="njkb" />
+      </div>
+
+      {/* Transaksi bulanan — dibaca di browser, dikirim per potongan (aman untuk file besar) */}
+      <div className="panel p-5">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="icon-chip bg-primary-100 text-primary-700 w-9 h-9">
+            <Receipt size={16} />
+          </div>
+          <h2 className="text-sm font-semibold">Transaksi bulanan</h2>
+        </div>
+        <p className="text-xs text-muted mb-4">
+          Sistem mencocokkan lewat No. Polisi lalu memperbarui tanggal bayar, jatuh tempo (akhir PKB terbaru),
+          nominal PKB, dan data kendaraan (kode jenis, cc, kode plat, no rangka, tanggal awal STNK). Riwayat
+          pembayaran tersimpan permanen. Boleh pilih beberapa file sekaligus. File dibaca di browser Anda dan
+          dikirim bertahap, jadi aman untuk file besar. Aman diulang.
+        </p>
+        <ImportBesar jenis="transaksi" />
       </div>
 
       {/* Database Master — form khusus, ada pilihan kategori */}
@@ -162,24 +164,7 @@ export default function ImportPage({
           terbaru dicatat Non-aktif (tetap tersimpan sebagai histori). Data transaksi tidak ikut
           tertimpa. Format kolom mengikuti sheet clean_datamaster_smd / Master Fixed.
         </p>
-        <form action="/api/import/master" method="post" encType="multipart/form-data" className="space-y-3">
-          <div>
-            <label className="text-xs text-muted block mb-1">Kategori OPD pada file ini</label>
-            <select
-              name="kategori"
-              required
-              className="text-sm border border-line rounded-lg px-3 py-2 w-full bg-white"
-            >
-              <option value="">Pilih kategori...</option>
-              <option value="Pemerintah Kota Samarinda">Pemerintah Kota Samarinda</option>
-              <option value="Pemerintah Provinsi Kalimantan Timur">Pemerintah Provinsi Kalimantan Timur</option>
-            </select>
-          </div>
-          <input type="file" name="file" accept=".xlsx,.xls" className="text-sm w-full" required />
-          <button className="btn-primary">
-            <Upload size={14} /> Import
-          </button>
-        </form>
+        <ImportBesar jenis="master" />
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">

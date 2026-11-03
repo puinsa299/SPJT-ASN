@@ -4,7 +4,7 @@ type Tone = "teal" | "amber" | "red" | "green" | "slate" | "sky" | "violet" | "p
 
 // Warna solid per kartu (tanpa gradasi): chip ikon, garis aksen kiri, dan efek hover
 const TONE_STYLES: Record<Tone, { chip: string }> = {
-  teal: { chip: "bg-primary-50 text-primary-600" },
+  teal: { chip: "bg-primary-100 text-primary-700" },
   sky: { chip: "bg-sky-50 text-sky-600" },
   violet: { chip: "bg-violet-50 text-violet-600" },
   pink: { chip: "bg-rose-50 text-rose-500" },

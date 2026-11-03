@@ -7,7 +7,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Warna utama: teal tua — identitas aplikasi (bukan biru default)
+        // Warna utama: hijau (identitas aplikasi)
         primary: {
           50: "#eefaf6",
           100: "#d3f2e8",
@@ -24,8 +24,8 @@ module.exports = {
         surface: "#f6faf9",
       },
       fontFamily: {
-        sans: ["var(--font-body)", "system-ui", "sans-serif"],
-        display: ["var(--font-display)", "system-ui", "sans-serif"],
+        sans: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+        display: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
       },
       boxShadow: {
         card: "0 1px 2px rgba(7, 61, 48, 0.04), 0 8px 20px -6px rgba(7, 61, 48, 0.12)",

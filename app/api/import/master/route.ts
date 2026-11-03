@@ -1,320 +1,224 @@
 import { NextRequest, NextResponse } from "next/server";
-import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeNopol, platFromNopol } from "@/lib/nopol";
 import { cellToDateString, cellToNumber, cellToString } from "@/lib/excel-helpers";
 import { toProperCase } from "@/lib/text-clean";
 
-// ----------------------------------------------------------------------------
-// Mapping header kolom (lowercase, trim) -> field internal.
-// Cocok dengan struktur sheet clean_datamaster_smd / Master Fixed.
-// ----------------------------------------------------------------------------
-const HEADER_MAP: Record<string, string> = {
-  "nomor polisi": "nomor_polisi",
-  "nama pemilik": "nama_pemilik",
-  "instansi": "instansi",
-  "standardized instansi": "standardized_instansi",
-  "jenis kendaraan": "jenis_kendaraan",
-  "cleaned": "nopol_cleaned", // nomor polisi yang sudah dibersihkan/dirapikan formatnya
-  "tanggal jatuh tempo": "tanggal_jatuh_tempo",
-  "jumlah pkb": "jumlah_pkb",
-  "nm_merek_kb": "merk",
-  "nm_model_kb": "model",
-  "th_rakitan": "tahun",
-  "tg_akhir_pkb": "tg_akhir_pkb",
-  "tg_bayar": "tg_bayar",
-  "bea_pkb_pok": "bea_pkb_pok",
-  // Kode Merk BPKAD — dipakai utk cocokkan ke tabel NJKB. Nama kolom persis
-  // di file BPKAD belum dipastikan, jadi beberapa kemungkinan nama umum
-  // ditampung di sini. Kalau nama kolom di file kamu beda, tambahkan di
-  // sini (atau kasih tau aku nama persisnya).
-  "kode merk": "kode_merk",
-  "kd_merek_kb": "kode_merk",
-  "kd_merk_kb": "kode_merk",
-  "kd merk": "kode_merk",
-  // Tanggal awal STNK — dipakai utk hitung ulang STNK & Plat (PNBP, 5 tahunan).
-  // Belum ada sumber data pasti; kolom ini dibaca KALAU ada, kalau tidak
-  // ketemu STNK & Plat akan tampil Rp 0 di perhitungan (lihat 11_njkb_tagihan.sql).
-  "tanggal awal stnk": "tanggal_awal_stnk",
-  "tg_awal_stnk": "tanggal_awal_stnk",
-  // Atribut kendaraan untuk perhitungan SWDKLLJ, STNK/Plat, dan lampiran surat
-  "kd_jenis_kb": "kode_jenis",
-  "jumlah_cc": "cc",
-  "kd_plat": "kd_plat",
-  "no_chasis": "no_rangka",
-  "no rangka": "no_rangka",
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// Import Database Master — file dibaca di browser dan dikirim per potongan (± 1000 baris),
+// supaya tidak kena batas ukuran unggahan & batas waktu Netlify.
+//   body { kategori, rows }                                -> proses satu potongan
+//   body { selesai: true, kategori, nopol, nama_file, total } -> tandai non-aktif yang hilang + catat log
+
+const KATEGORI = ["Pemerintah Provinsi Kalimantan Timur", "Pemerintah Kota Samarinda"];
+const KUNCI = 150;
+const potong = <T,>(a: T[], n: number) => {
+  const out: T[][] = [];
+  for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n));
+  return out;
 };
 
 export async function POST(req: NextRequest) {
   const supabase = createClient();
-
-  // pastikan yang mengakses memang admin login (selain proteksi middleware, jaga2 dipanggil langsung)
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Sesi login habis, silakan login ulang" }, { status: 401 });
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Data tidak terbaca" }, { status: 400 });
   }
+  const kategori: string = body.kategori;
+  if (!KATEGORI.includes(kategori)) return NextResponse.json({ error: "Kategori OPD wajib dipilih" }, { status: 400 });
 
-  const formData = await req.formData();
-  const file = formData.get("file") as File | null;
-  const kategori = formData.get("kategori") as string | null;
+  // ---------------- penutup ----------------
+  if (body.selesai) {
+    const total = body.total ?? {};
+    const nopolSet = new Set<string>((Array.isArray(body.nopol) ? body.nopol : []).map((x: string) => normalizeNopol(x)));
 
-  if (!file) return NextResponse.json({ error: "File wajib diupload" }, { status: 400 });
-  if (kategori !== "Pemerintah Provinsi Kalimantan Timur" && kategori !== "Pemerintah Kota Samarinda") {
-    return NextResponse.json({ error: "Kategori OPD wajib dipilih" }, { status: 400 });
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer as any);
-
-  // Cari sheet yang namanya mengandung 'master' atau 'clean_datamaster', fallback ke sheet pertama
-  const sheet =
-    workbook.worksheets.find((ws) => /master|clean_datamaster/i.test(ws.name)) ?? workbook.worksheets[0];
-
-  if (!sheet) return NextResponse.json({ error: "Sheet tidak ditemukan di file" }, { status: 400 });
-
-  // Baca header row (row pertama yang tidak kosong)
-  const headerRow = sheet.getRow(1);
-  const colIndexToField: Record<number, string> = {};
-  headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-    const key = cellToString(cell.value).toLowerCase();
-    if (HEADER_MAP[key]) colIndexToField[colNumber] = HEADER_MAP[key];
-  });
-
-  if (Object.keys(colIndexToField).length === 0) {
-    return NextResponse.json(
-      { error: "Header kolom tidak dikenali. Pastikan file sesuai format clean_datamaster_smd." },
-      { status: 400 }
-    );
-  }
-
-  // ---- Baca seluruh baris data ke memori ----
-  type Row = Record<string, any>;
-  const rows: Row[] = [];
-
-  sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-    if (rowNumber === 1) return; // skip header
-    const rec: Row = {};
-    row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-      const field = colIndexToField[colNumber];
-      if (field) rec[field] = cell.value;
+    const { data: opdKategori } = await supabase.from("opd").select("id").eq("kategori", kategori);
+    const opdIds = (opdKategori ?? []).map((o: any) => o.id);
+    const aktif: { id: string; nomor_polisi: string }[] = [];
+    for (const p of potong(opdIds, 50)) {
+      let dari = 0;
+      while (true) {
+        const { data } = await supabase.from("kendaraan").select("id, nomor_polisi").in("opd_id", p).eq("status", "Aktif").range(dari, dari + 999);
+        aktif.push(...(data ?? []));
+        if (!data || data.length < 1000) break;
+        dari += 1000;
+      }
+    }
+    // pengaman: bila daftar nopol kosong, jangan menandai siapa pun non-aktif
+    const hilang = nopolSet.size === 0 ? [] : aktif.filter((k) => !nopolSet.has(k.nomor_polisi));
+    for (const p of potong(hilang, 500)) {
+      await supabase.from("riwayat_status").insert(
+        p.map((k) => ({
+          kendaraan_id: k.id,
+          status_baru: "Non-aktif" as const,
+          keterangan: "Tidak ditemukan pada import Database Master terbaru",
+          sumber: "Import Database Master" as const,
+          created_by: user.email,
+        }))
+      );
+    }
+    const { data: log } = await supabase
+      .from("import_log")
+      .insert({
+        jenis_import: "Database Master",
+        nama_file: String(body.nama_file ?? "").slice(0, 500),
+        jumlah_ditambah: Number(total.ditambah ?? 0),
+        jumlah_diupdate: Number(total.diupdate ?? 0),
+        jumlah_nonaktif: hilang.length,
+        created_by: user.email,
+      })
+      .select()
+      .single();
+    await supabase.from("activity_log").insert({
+      jenis_aksi: "import_database_master",
+      deskripsi: `Import Database Master (${kategori}): ${total.ditambah ?? 0} ditambah, ${total.diupdate ?? 0} diperbarui, ${total.bayar_baru ?? 0} pembayaran baru tercatat, ${hilang.length} ditandai non-aktif. OPD baru: ${total.opd_baru ?? 0}.`,
+      referensi_id: log?.id,
+      referensi_tabel: "import_log",
+      created_by: user.email,
     });
-    if (rec.nomor_polisi) rows.push(rec);
-  });
-
-  if (rows.length === 0) {
-    return NextResponse.json({ error: "Tidak ada baris data terbaca dari file" }, { status: 400 });
+    return NextResponse.json({ ok: true, nonaktif: hilang.length });
   }
 
-  // ---- Normalisasi tiap baris ----
-  const parsed = rows.map((r) => {
-    const nomorPolisiRaw = cellToString(r.nomor_polisi);
-    // Prioritas: pakai kolom "Cleaned" (nopol yg sudah dirapikan dari pipeline kamu).
-    // Ini dipakai baik sebagai tampilan (nomor_polisi_display) MAUPUN kunci pencocokan.
-    const nopolCleaned = cellToString(r.nopol_cleaned);
-    const nomorPolisiSumber = nopolCleaned || nomorPolisiRaw;
-    const nomorPolisi = normalizeNopol(nomorPolisiSumber);
-    const namaInstansi = cellToString(r.standardized_instansi) || cellToString(r.instansi);
-    const jumlahPkb = cellToNumber(r.jumlah_pkb);
-    const beaPkbPok = cellToNumber(r.bea_pkb_pok);
-    return {
-      nomor_polisi: nomorPolisi,
-      nomor_polisi_display: nomorPolisiSumber,
-      nama_pemilik: toProperCase(cellToString(r.nama_pemilik)),
-      nama_instansi: namaInstansi,
-      jenis: cellToString(r.jenis_kendaraan) || null,
-      merk: cellToString(r.merk) || null,
-      model: cellToString(r.model) || null,
-      tahun: r.tahun ? Number(cellToNumber(r.tahun)) : null,
-      kode_merk: cellToString(r.kode_merk) || null,
-      tanggal_awal_stnk: cellToDateString(r.tanggal_awal_stnk),
-      kode_jenis: cellToString(r.kode_jenis).trim().toUpperCase() || null,
-      cc: r.cc !== undefined && r.cc !== null && r.cc !== "" && !Number.isNaN(Number(cellToNumber(r.cc))) ? Math.round(Number(cellToNumber(r.cc))) : null,
-      kd_plat: cellToString(r.kd_plat).trim() || null,
-      no_rangka: cellToString(r.no_rangka).trim() || null,
-      jatuh_tempo: cellToDateString(r.tanggal_jatuh_tempo) ?? cellToDateString(r.tg_akhir_pkb),
-      plat: platFromNopol(nomorPolisi),
-      // aturan: pakai Jumlah PKB kalau terisi, kalau kosong pakai bea_pkb_pok
-      pokok_pkb: jumlahPkb ?? beaPkbPok,
-      tanggal_bayar: cellToDateString(r.tg_bayar),
-    };
-  }).filter((r) => r.nomor_polisi);
+  // ---------------- satu potongan ----------------
+  const rows: Record<string, any>[] = Array.isArray(body.rows) ? body.rows : [];
+  const parsed = rows
+    .map((r) => {
+      const nomorPolisiRaw = cellToString(r.nomor_polisi);
+      const nopolCleaned = cellToString(r.nopol_cleaned);
+      const sumber = nopolCleaned || nomorPolisiRaw;
+      const nomorPolisi = normalizeNopol(sumber);
+      const jumlahPkb = cellToNumber(r.jumlah_pkb);
+      const beaPkbPok = cellToNumber(r.bea_pkb_pok);
+      const cc = r.cc !== undefined && r.cc !== null && r.cc !== "" ? cellToNumber(r.cc) : null;
+      return {
+        nomor_polisi: nomorPolisi,
+        nomor_polisi_display: sumber,
+        nama_pemilik: toProperCase(cellToString(r.nama_pemilik)),
+        nama_instansi: cellToString(r.standardized_instansi) || cellToString(r.instansi),
+        jenis: cellToString(r.jenis_kendaraan) || null,
+        merk: cellToString(r.merk) || null,
+        model: cellToString(r.model) || null,
+        tahun: r.tahun ? Number(cellToNumber(r.tahun)) : null,
+        kode_merk: cellToString(r.kode_merk) || null,
+        tanggal_awal_stnk: cellToDateString(r.tanggal_awal_stnk),
+        kode_jenis: cellToString(r.kode_jenis).toUpperCase() || null,
+        cc: cc !== null && !Number.isNaN(cc) ? Math.round(cc) : null,
+        kd_plat: cellToString(r.kd_plat) || null,
+        no_rangka: cellToString(r.no_rangka) || null,
+        jatuh_tempo: cellToDateString(r.tanggal_jatuh_tempo) ?? cellToDateString(r.tg_akhir_pkb),
+        plat: platFromNopol(nomorPolisi),
+        pokok_pkb: jumlahPkb ?? beaPkbPok,
+        tanggal_bayar: cellToDateString(r.tg_bayar),
+      };
+    })
+    .filter((r) => r.nomor_polisi);
 
-  // ---- 1. Resolve OPD: fetch existing dalam kategori ini, buat yang belum ada ----
-  const namaInstansiUnik = Array.from(new Set(parsed.map((r) => r.nama_instansi).filter(Boolean)));
-
-  const { data: opdExisting } = await supabase
-    .from("opd")
-    .select("id, nama_opd")
-    .eq("kategori", kategori);
-
-  const opdMap = new Map<string, string>(); // nama lowercase trim -> id
-  (opdExisting ?? []).forEach((o) => opdMap.set(o.nama_opd.trim().toLowerCase(), o.id));
-
-  const opdBaru = namaInstansiUnik.filter((nama) => !opdMap.has(nama.trim().toLowerCase()));
-
+  // 1. OPD
+  const namaUnik = Array.from(new Set(parsed.map((r) => r.nama_instansi).filter(Boolean)));
+  const { data: opdAda } = await supabase.from("opd").select("id, nama_opd").eq("kategori", kategori);
+  const opdMap = new Map<string, string>();
+  (opdAda ?? []).forEach((o: any) => opdMap.set(o.nama_opd.trim().toLowerCase(), o.id));
+  const opdBaru = namaUnik.filter((n) => !opdMap.has(n.trim().toLowerCase()));
   if (opdBaru.length > 0) {
-    const { data: inserted } = await supabase
+    const { data: ins, error } = await supabase
       .from("opd")
       .insert(opdBaru.map((nama) => ({ nama_opd: nama, kategori, perlu_verifikasi: true })))
       .select("id, nama_opd");
-    (inserted ?? []).forEach((o) => opdMap.set(o.nama_opd.trim().toLowerCase(), o.id));
+    if (error) return NextResponse.json({ error: `Gagal membuat OPD baru: ${error.message}` }, { status: 500 });
+    (ins ?? []).forEach((o: any) => opdMap.set(o.nama_opd.trim().toLowerCase(), o.id));
   }
 
-  // ---- 2. Cek kendaraan yang SUDAH ada — id-nya, opd, DAN tanggal bayar terakhir yang tersimpan ----
-  const nopolList = parsed.map((r) => r.nomor_polisi);
-  const existingKendaraan = new Map<string, { id: string; opd_id: string }>();
+  // 2. kendaraan yang sudah ada
+  const nopolList = Array.from(new Set(parsed.map((r) => r.nomor_polisi)));
+  const ada = new Set<string>();
+  const hasilAda = await Promise.all(potong(nopolList, KUNCI).map((p) => supabase.from("kendaraan").select("nomor_polisi").in("nomor_polisi", p)));
+  hasilAda.forEach((h) => (h.data ?? []).forEach((k: any) => ada.add(k.nomor_polisi)));
 
-  const CHUNK = 500;
-  for (let i = 0; i < nopolList.length; i += CHUNK) {
-    const chunk = nopolList.slice(i, i + CHUNK);
-    const { data } = await supabase.from("kendaraan").select("id, nomor_polisi, opd_id").in("nomor_polisi", chunk);
-    (data ?? []).forEach((k) => existingKendaraan.set(k.nomor_polisi, { id: k.id, opd_id: k.opd_id }));
-  }
-
-  const jumlahDitambah = parsed.filter((r) => !existingKendaraan.has(r.nomor_polisi)).length;
-  const jumlahDiupdate = parsed.length - jumlahDitambah;
-
-  // ---- 3. Upsert kendaraan (status TIDAK disertakan supaya tidak menimpa status manual) ----
-  const kendaraanPayload = parsed.map((r) => ({
-    nomor_polisi: r.nomor_polisi,
-    nomor_polisi_display: r.nomor_polisi_display,
-    opd_id: opdMap.get(r.nama_instansi?.trim().toLowerCase() ?? "") ?? null,
-    plat: r.plat,
-    nama_pemilik: r.nama_pemilik,
-    jenis: r.jenis,
-    merk: r.merk,
-    model: r.model,
-    tahun: r.tahun,
-    kode_merk: r.kode_merk,
-    tanggal_awal_stnk: r.tanggal_awal_stnk,
-    kode_jenis: r.kode_jenis,
-    cc: r.cc,
-    kd_plat: r.kd_plat,
-    no_rangka: r.no_rangka,
-    jatuh_tempo: r.plat === "KT" ? r.jatuh_tempo : null,
-  }));
-
-  // Atribut baru (kode_jenis, cc, kd_plat, no_rangka) HANYA ikut di-upsert kalau terisi di
-  // file, supaya file master lama (tanpa kolom itu) tidak menghapus data yang sudah
-  // dilengkapi dari import transaksi. Baris dikelompokkan menurut kolom yang dikirim
-  // (satu panggilan upsert harus punya kolom seragam).
-  const OPSIONAL = ["kode_jenis", "cc", "kd_plat", "no_rangka"] as const;
+  // 3. upsert kendaraan (status tidak disertakan agar status manual tidak tertimpa).
+  //    Kolom opsional hanya ikut bila terisi; baris dikelompokkan menurut kolom yang dikirim.
+  const unik = new Map<string, (typeof parsed)[number]>();
+  parsed.forEach((r) => unik.set(r.nomor_polisi, r));
+  const dilewatiTanpaInstansi: string[] = [];
+  const payload: Record<string, any>[] = [];
+  unik.forEach((r) => {
+    const opdId = opdMap.get(r.nama_instansi.trim().toLowerCase());
+    if (!opdId) {
+      dilewatiTanpaInstansi.push(r.nomor_polisi);
+      return;
+    }
+    payload.push({
+      nomor_polisi: r.nomor_polisi,
+      nomor_polisi_display: r.nomor_polisi_display,
+      opd_id: opdId,
+      plat: r.plat,
+      nama_pemilik: r.nama_pemilik,
+      jenis: r.jenis,
+      merk: r.merk,
+      model: r.model,
+      tahun: r.tahun,
+      kode_merk: r.kode_merk,
+      tanggal_awal_stnk: r.tanggal_awal_stnk,
+      kode_jenis: r.kode_jenis,
+      cc: r.cc,
+      kd_plat: r.kd_plat,
+      no_rangka: r.no_rangka,
+      jatuh_tempo: r.plat === "KT" ? r.jatuh_tempo : null,
+    });
+  });
+  const OPSIONAL = ["kode_merk", "tanggal_awal_stnk", "kode_jenis", "cc", "kd_plat", "no_rangka"] as const;
   const kelompok = new Map<string, Record<string, any>[]>();
-  for (const row of kendaraanPayload) {
+  for (const row of payload) {
     const r: Record<string, any> = { ...row };
     for (const k of OPSIONAL) if (r[k] === null || r[k] === undefined) delete r[k];
     const sig = OPSIONAL.filter((k) => k in r).join(",");
     if (!kelompok.has(sig)) kelompok.set(sig, []);
     kelompok.get(sig)!.push(r);
   }
-  for (const rows of kelompok.values()) {
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      await supabase.from("kendaraan").upsert(rows.slice(i, i + CHUNK), { onConflict: "nomor_polisi" });
+  for (const rowsK of kelompok.values()) {
+    for (const p of potong(rowsK, 300)) {
+      const { error } = await supabase.from("kendaraan").upsert(p, { onConflict: "nomor_polisi" });
+      if (error) return NextResponse.json({ error: `Gagal menyimpan kendaraan: ${error.message}` }, { status: 500 });
     }
   }
 
-  // ---- 4. Sinkronkan pembayaran — cek SEMUA baris (bukan cuma kendaraan baru).
-  //     Kalau tanggal_bayar di file beda dari tanggal bayar terakhir yang tersimpan
-  //     (atau belum pernah ada transaksi sama sekali), catat sebagai pembayaran baru.
-  //     Opsen otomatis dihitung 66% x pokok oleh trigger database saat insert.
-  const { data: kendaraanIdRows } = await (async () => {
-    const out: { id: string; nomor_polisi: string }[] = [];
-    for (let i = 0; i < nopolList.length; i += CHUNK) {
-      const { data } = await supabase
-        .from("kendaraan")
-        .select("id, nomor_polisi")
-        .in("nomor_polisi", nopolList.slice(i, i + CHUNK));
-      out.push(...(data ?? []));
-    }
-    return { data: out };
-  })();
-  const idByNopol = new Map((kendaraanIdRows ?? []).map((k) => [k.nomor_polisi, k.id]));
+  // 4. pembayaran
+  const idByNopol = new Map<string, string>();
+  const hasilId = await Promise.all(potong(nopolList, KUNCI).map((p) => supabase.from("kendaraan").select("id, nomor_polisi").in("nomor_polisi", p)));
+  hasilId.forEach((h) => (h.data ?? []).forEach((k: any) => idByNopol.set(k.nomor_polisi, k.id)));
+  const terakhir = new Map<string, string>();
+  const hasilTerakhir = await Promise.all(
+    potong(Array.from(idByNopol.values()), KUNCI).map((p) => supabase.from("v_kendaraan_pembayaran_terakhir").select("kendaraan_id, tanggal_bayar_terakhir").in("kendaraan_id", p))
+  );
+  hasilTerakhir.forEach((h) => (h.data ?? []).forEach((p: any) => p.tanggal_bayar_terakhir && terakhir.set(p.kendaraan_id, p.tanggal_bayar_terakhir)));
 
-  const kendaraanIdsAll = Array.from(idByNopol.values());
-  const pembayaranTerakhirMap = new Map<string, string>(); // kendaraan_id -> tanggal_bayar_terakhir
-  for (let i = 0; i < kendaraanIdsAll.length; i += CHUNK) {
-    const { data } = await supabase
-      .from("v_kendaraan_pembayaran_terakhir")
-      .select("kendaraan_id, tanggal_bayar_terakhir")
-      .in("kendaraan_id", kendaraanIdsAll.slice(i, i + CHUNK));
-    (data ?? []).forEach((p) => {
-      if (p.tanggal_bayar_terakhir) pembayaranTerakhirMap.set(p.kendaraan_id, p.tanggal_bayar_terakhir);
-    });
-  }
-
-  const transaksiPayload = parsed
+  const transaksi = Array.from(unik.values())
     .filter((r) => r.tanggal_bayar && r.pokok_pkb && idByNopol.has(r.nomor_polisi))
-    .filter((r) => {
-      const kendaraanId = idByNopol.get(r.nomor_polisi)!;
-      const terakhir = pembayaranTerakhirMap.get(kendaraanId);
-      return terakhir !== r.tanggal_bayar; // beda tanggal (atau belum pernah ada) -> catat baru
-    })
+    .filter((r) => terakhir.get(idByNopol.get(r.nomor_polisi)!) !== r.tanggal_bayar)
     .map((r) => ({
       kendaraan_id: idByNopol.get(r.nomor_polisi),
       tanggal_bayar: r.tanggal_bayar,
       masa_pajak_periode: r.jatuh_tempo,
-      pokok_pkb: r.pokok_pkb,
-      // opsen & total otomatis dihitung trigger fn_calc_opsen_total
+      pokok_pkb: r.pokok_pkb, // opsen & total dihitung trigger fn_calc_opsen_total
     }));
-
-  for (let i = 0; i < transaksiPayload.length; i += CHUNK) {
-    await supabase.from("transaksi_pembayaran").insert(transaksiPayload.slice(i, i + CHUNK));
+  for (const p of potong(transaksi, 500)) {
+    const { error } = await supabase.from("transaksi_pembayaran").insert(p);
+    if (error) return NextResponse.json({ error: `Gagal menyimpan pembayaran: ${error.message}` }, { status: 500 });
   }
 
-  const jumlahPembayaranBaru = transaksiPayload.length;
-
-  // ---- 5. Tandai Non-aktif kendaraan yang hilang dari data terbaru (dalam scope kategori ini) ----
-  const opdIdsScope = Array.from(opdMap.values());
-  const { data: kendaraanAktifScope } = await supabase
-    .from("kendaraan")
-    .select("id, nomor_polisi, opd_id")
-    .in("opd_id", opdIdsScope.length > 0 ? opdIdsScope : ["00000000-0000-0000-0000-000000000000"])
-    .eq("status", "Aktif");
-
-  const nopolSet = new Set(nopolList);
-  const hilang = (kendaraanAktifScope ?? []).filter((k) => !nopolSet.has(k.nomor_polisi));
-
-  if (hilang.length > 0) {
-    const riwayatPayload = hilang.map((k) => ({
-      kendaraan_id: k.id,
-      status_baru: "Non-aktif" as const,
-      keterangan: "Tidak ditemukan pada import Database Master terbaru",
-      sumber: "Import Database Master" as const,
-      created_by: user.email,
-    }));
-    for (let i = 0; i < riwayatPayload.length; i += CHUNK) {
-      await supabase.from("riwayat_status").insert(riwayatPayload.slice(i, i + CHUNK));
-    }
-  }
-
-  // ---- 6. Catat import_log & activity_log ----
-  const { data: log } = await supabase
-    .from("import_log")
-    .insert({
-      jenis_import: "Database Master",
-      nama_file: file.name,
-      jumlah_ditambah: jumlahDitambah,
-      jumlah_diupdate: jumlahDiupdate,
-      jumlah_nonaktif: hilang.length,
-      created_by: user.email,
-    })
-    .select()
-    .single();
-
-  await supabase.from("activity_log").insert({
-    jenis_aksi: "import_database_master",
-    deskripsi: `Import Database Master (${kategori}): ${jumlahDitambah} ditambah, ${jumlahDiupdate} diperbarui, ${jumlahPembayaranBaru} pembayaran baru tercatat, ${hilang.length} ditandai non-aktif. OPD baru: ${opdBaru.length}.`,
-    referensi_id: log?.id,
-    referensi_tabel: "import_log",
-    created_by: user.email,
+  const ditambah = Array.from(unik.keys()).filter((n) => !ada.has(n) && !dilewatiTanpaInstansi.includes(n)).length;
+  return NextResponse.json({
+    ok: true,
+    ditambah,
+    diupdate: payload.length - ditambah,
+    bayar_baru: transaksi.length,
+    opd_baru: opdBaru.length,
+    tanpa_instansi: dilewatiTanpaInstansi.length,
   });
-
-  return NextResponse.redirect(
-    new URL(
-      `/import?sukses=master&ditambah=${jumlahDitambah}&diupdate=${jumlahDiupdate}&bayar_baru=${jumlahPembayaranBaru}&nonaktif=${hilang.length}&opd_baru=${opdBaru.length}`,
-      req.url
-    ),
-    { status: 303 }
-  );
 }
