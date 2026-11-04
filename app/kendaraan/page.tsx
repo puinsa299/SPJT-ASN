@@ -3,7 +3,7 @@ import { Search, UserX } from "lucide-react";
 
 export const revalidate = 0;
 
-const SORTABLE = ["nomor_polisi_display", "nama_pemilik", "jenis", "tahun", "jatuh_tempo", "status"];
+const SORTABLE = ["nomor_polisi_display", "nama_pengguna", "nama_pemilik", "jenis", "tahun", "jatuh_tempo", "status"];
 
 export default async function KendaraanPage({
   searchParams,
@@ -23,7 +23,7 @@ export default async function KendaraanPage({
 
   if (searchParams.q) {
     query = query.or(
-      `nomor_polisi_display.ilike.%${searchParams.q}%,nama_pemilik.ilike.%${searchParams.q}%`
+      `nomor_polisi_display.ilike.%${searchParams.q}%,nama_pengguna.ilike.%${searchParams.q}%,nama_pemilik.ilike.%${searchParams.q}%`
     );
   }
   if (searchParams.filter === "belum_balik_nama") {
@@ -73,7 +73,8 @@ export default async function KendaraanPage({
           <thead>
             <tr>
               <SortHeader label="No. Polisi" field="nomor_polisi_display" current={sort} asc={asc} q={searchParams.q} />
-              <SortHeader label="Pemilik" field="nama_pemilik" current={sort} asc={asc} q={searchParams.q} />
+              <SortHeader label="Nama pengguna" field="nama_pengguna" current={sort} asc={asc} q={searchParams.q} />
+              <SortHeader label="Nama pemilik" field="nama_pemilik" current={sort} asc={asc} q={searchParams.q} />
               <th>OPD</th>
               <th>Keterangan</th>
               <SortHeader label="Jenis" field="jenis" current={sort} asc={asc} q={searchParams.q} />
@@ -89,7 +90,7 @@ export default async function KendaraanPage({
               <tr key={k.id}>
                 <td className="font-medium">{k.nomor_polisi_display}</td>
                 <td>
-                  {k.nama_pemilik}
+                  {k.nama_pengguna}
                   {k.belum_balik_nama && (
                     <div className="mt-1">
                       <span className="badge-status badge-belum-bayar" title={`Nama di Samsat: ${k.nama_pemilik_transaksi ?? "-"}`}>
@@ -98,6 +99,7 @@ export default async function KendaraanPage({
                     </div>
                   )}
                 </td>
+                <td>{k.nama_pemilik ?? "-"}</td>
                 <td className="text-muted">{k.opd?.nama_opd}</td>
                 <td>
                   <span className={`badge-status ${k.plat === "KT" ? "badge-sudah-bayar" : "badge-luar-daerah"}`}>

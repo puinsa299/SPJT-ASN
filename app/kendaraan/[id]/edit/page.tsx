@@ -48,7 +48,15 @@ export default async function EditKendaraanPage({
             />
           </Field>
 
-          <Field label="Nama pemilik">
+          <Field label="Nama pengguna">
+            <input
+              name="nama_pengguna"
+              defaultValue={kendaraan.nama_pengguna ?? ""}
+              className="w-full border border-line rounded-lg px-3 py-2 text-sm"
+            />
+          </Field>
+
+          <Field label="Nama pemilik (di STNK/Samsat)">
             <input
               name="nama_pemilik"
               defaultValue={kendaraan.nama_pemilik ?? ""}

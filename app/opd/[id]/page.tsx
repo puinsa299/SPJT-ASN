@@ -33,7 +33,7 @@ export default async function OpdDetailPage({
 
   if (searchParams.q) {
     kendaraanQuery = kendaraanQuery.or(
-      `nomor_polisi_display.ilike.%${searchParams.q}%,nama_pemilik.ilike.%${searchParams.q}%`
+      `nomor_polisi_display.ilike.%${searchParams.q}%,nama_pengguna.ilike.%${searchParams.q}%,nama_pemilik.ilike.%${searchParams.q}%`
     );
   }
 
@@ -104,7 +104,7 @@ export default async function OpdDetailPage({
               type="text"
               name="q"
               defaultValue={searchParams.q}
-              placeholder="Cari no. polisi / nama pemilik..."
+              placeholder="Cari no. polisi / nama..."
               className="text-sm border border-line rounded-lg pl-8 pr-3 py-1.5 w-64 focus:outline-none focus:ring-2 focus:ring-primary-200"
             />
           </form>
@@ -113,7 +113,8 @@ export default async function OpdDetailPage({
           <thead>
             <tr>
               <th>No. Polisi</th>
-              <th>Pemilik</th>
+              <th>Nama pengguna</th>
+              <th>Nama pemilik</th>
               <th>Jenis</th>
               <th>Merk</th>
               <th>Model</th>
@@ -127,7 +128,8 @@ export default async function OpdDetailPage({
             {kendaraanList?.map((k: any) => (
               <tr key={k.id}>
                 <td className="font-medium">{k.nomor_polisi_display}</td>
-                <td>{k.nama_pemilik}</td>
+                <td>{k.nama_pengguna}</td>
+                <td>{k.nama_pemilik ?? "-"}</td>
                 <td>{k.jenis}</td>
                 <td>{k.merk}</td>
                 <td>{k.model}</td>

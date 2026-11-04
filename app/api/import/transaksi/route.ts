@@ -127,7 +127,8 @@ export async function POST(req: NextRequest) {
     if (r.kode_merk && !info.kode_merk) { u.kode_merk = r.kode_merk; ubah = true; }
     if (r.tanggal_awal_stnk) { u.tanggal_awal_stnk = r.tanggal_awal_stnk; ubah = true; }
     if (r.nama_pemilik_file) {
-      const tersimpan = (info.nama_pemilik ?? "").trim().toLowerCase();
+      u.nama_pemilik = r.nama_pemilik_file; // nama pemilik di STNK/Samsat
+      const tersimpan = (info.nama_pengguna ?? "").trim().toLowerCase();
       const dariFile = r.nama_pemilik_file.trim().toLowerCase();
       const belum = tersimpan !== "" && tersimpan !== dariFile;
       u.belum_balik_nama = belum;

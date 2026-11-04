@@ -4,7 +4,8 @@ export type JenisSurat = "SPJT" | "STPD";
 
 export type BarisLampiran = {
   nopol: string;
-  nama: string;
+  pengguna: string; // nama pengguna (ASN pemakai)
+  nama: string; // nama pemilik di STNK/Samsat
   rangka: string;
   jatuhTempo: string | null; // yyyy-mm-dd
   pokok: number;
@@ -29,6 +30,8 @@ export type SetelanSurat = {
   nip: string;
   batasHari: number;
   lampiranRincian: boolean;
+  judulLampiran: string;
+  subjudulLampiran: string; // boleh memakai {instansi}
 };
 
 export type InfoPemutihan = {
@@ -101,29 +104,33 @@ export const SETELAN_BAWAAN: Record<JenisSurat, SetelanSurat> = {
     kota: "Samarinda",
     sifat: "${sifat}",
     paragraf: [
-      "Berdasarkan basis data yang disampaikan oleh Badan Pengelola Keuangan dan Aset Daerah Pemerintah Kota Samarinda, berikut kami sampaikan daftar kendaraan yang tercatat digunakan oleh {instansi} sebagaimana terlampir.",
-      "Sehubungan dengan hal tersebut, kami mohon agar Saudara dapat melakukan konfirmasi dan verifikasi terhadap data dimaksud, meliputi status kepemilikan dan penggunaan kendaraan serta status pembayaran Pajak Kendaraan Bermotor (PKB) atas masing-masing kendaraan. Apabila kendaraan tersebut masih dimiliki atau dikuasai oleh instansi Saudara dan masih terdapat tunggakan pajak, kami mohon agar tunggakan tersebut dapat dilunasi paling lambat {batas_hari} hari kalender sejak surat ini diterima. Hasil konfirmasi dan verifikasi agar disampaikan kepada UPTD PPRD Wilayah Samarinda sebagai bahan pemutakhiran data dan tindak lanjut pengawasan kepatuhan pajak kendaraan dinas.",
+      "Berdasarkan data kendaraan bermotor pada basis data UPTD PPRD Wilayah Samarinda, bersama ini kami sampaikan daftar kendaraan bermotor milik/digunakan oleh Aparatur Sipil Negara (ASN) di lingkungan {instansi} yang akan segera jatuh tempo masa berlaku Pajak Kendaraan Bermotor (PKB), sebagaimana terlampir.",
+      "Sehubungan dengan hal tersebut, kami mohon bantuan Saudara untuk menyampaikan informasi ini kepada ASN yang bersangkutan agar melakukan pembayaran PKB sebelum tanggal jatuh tempo masing-masing, melalui Samsat atau kanal pembayaran resmi, sehingga terhindar dari denda dan sanksi administrasi. Apabila kendaraan sudah dijual atau dipindahtangankan, mohon disampaikan keterangan tertulis kepada UPTD PPRD Wilayah Samarinda sebagai bahan pemutakhiran data.",
     ],
-    penutup: "Demikian surat ini kami sampaikan, atas perhatian dan kerjasamanya diucapkan terima kasih.",
+    penutup: "Demikian kami sampaikan, atas perhatian dan kerja sama Saudara diucapkan terima kasih.",
     jabatan: "Kepala,",
     namaPejabat: "${nama_pengirim}",
     nip: "197204111996032005",
     batasHari: 14,
     lampiranRincian: true,
+    judulLampiran: "DAFTAR KENDARAAN JATUH TEMPO",
+    subjudulLampiran: "a.n. ASN {instansi}",
   },
   STPD: {
     kota: "Samarinda",
     sifat: "${sifat}",
     paragraf: [
-      "Berdasarkan basis data yang disampaikan oleh Badan Pengelola Keuangan dan Aset Daerah Pemerintah Kota Samarinda, kendaraan yang tercatat digunakan oleh {instansi} sebagaimana terlampir masih memiliki tunggakan Pajak Kendaraan Bermotor (PKB).",
-      "Sehubungan dengan hal tersebut, kami sampaikan tagihan atas tunggakan pajak beserta komponen pendukungnya sebagaimana rincian pada lampiran, dan mohon agar tagihan tersebut dapat dilunasi paling lambat {batas_hari} hari kalender sejak surat ini diterima. Apabila kendaraan tersebut sudah tidak dimiliki atau dikuasai oleh instansi Saudara, mohon disampaikan keterangan tertulis kepada UPTD PPRD Wilayah Samarinda sebagai bahan pemutakhiran data.",
+      "Berdasarkan data kendaraan bermotor pada basis data UPTD PPRD Wilayah Samarinda, kendaraan bermotor milik/digunakan oleh Aparatur Sipil Negara (ASN) di lingkungan {instansi} sebagaimana terlampir telah melewati masa jatuh tempo dan belum dilakukan pembayaran Pajak Kendaraan Bermotor (PKB).",
+      "Sehubungan dengan hal tersebut, kami sampaikan rincian tunggakan pajak beserta denda dan komponen lainnya pada lampiran, dan mohon bantuan Saudara untuk menyampaikannya kepada ASN yang bersangkutan agar melunasi tunggakan paling lambat {batas_hari} hari kalender sejak surat ini diterima. Apabila kendaraan sudah dijual atau dipindahtangankan, mohon disampaikan keterangan tertulis kepada UPTD PPRD Wilayah Samarinda sebagai bahan pemutakhiran data.",
     ],
-    penutup: "Demikian surat ini kami sampaikan, atas perhatian dan kerjasamanya diucapkan terima kasih.",
+    penutup: "Demikian kami sampaikan, atas perhatian dan kerja sama Saudara diucapkan terima kasih.",
     jabatan: "Kepala,",
     namaPejabat: "${nama_pengirim}",
     nip: "197204111996032005",
     batasHari: 14,
     lampiranRincian: true,
+    judulLampiran: "DAFTAR KENDARAAN MENUNGGAK PAJAK",
+    subjudulLampiran: "a.n. ASN {instansi}",
   },
 };
 
@@ -139,6 +146,8 @@ type RowPengaturan = Partial<{
   nip: string | null;
   batas_hari: number | null;
   lampiran_rincian: boolean | null;
+  judul_lampiran: string | null;
+  subjudul_lampiran: string | null;
 }>;
 
 const isi = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
@@ -161,6 +170,8 @@ export function gabungSetelan(jenis: JenisSurat, row: RowPengaturan | null | und
     nip: isi(row?.nip) ?? b.nip,
     batasHari: row?.batas_hari && row.batas_hari > 0 ? row.batas_hari : b.batasHari,
     lampiranRincian: row?.lampiran_rincian ?? b.lampiranRincian,
+    judulLampiran: isi(row?.judul_lampiran) ?? b.judulLampiran,
+    subjudulLampiran: isi(row?.subjudul_lampiran) ?? b.subjudulLampiran,
   };
 }
 
@@ -187,28 +198,29 @@ export type Kolom = {
 export const LEBAR_KERJA_CM = 26.7;
 
 const KOLOM_PENUH: Kolom[] = [
-  { key: "no", label: "No", cm: 0.7, align: "center" },
-  { key: "nopol", label: "Nopol di Samsat", cm: 2.0, align: "left" },
-  { key: "nama", label: "Nama di Samsat", cm: 2.8, align: "left" },
-  { key: "rangka", label: "No Rangka", cm: 2.9, align: "left" },
-  { key: "jatuhTempo", label: "Jatuh Tempo", cm: 2.3, align: "center" },
-  { key: "pokok", label: "Pokok PKB", cm: 1.9, align: "right", numeric: true },
-  { key: "dendaPkb", label: "Denda PKB", cm: 1.8, align: "right", numeric: true },
-  { key: "sanksi", label: "Sanksi Adm", cm: 1.3, align: "right", numeric: true },
-  { key: "opsen", label: "Opsen PKB", cm: 1.7, align: "right", numeric: true },
-  { key: "dendaOpsen", label: "Denda Opsen", cm: 1.5, align: "right", numeric: true },
-  { key: "swdkllj", label: "SWDKLLJ", cm: 1.5, align: "right", numeric: true },
-  { key: "dendaSwdkllj", label: "Denda SWDKLLJ", cm: 1.5, align: "right", numeric: true },
-  { key: "stnk", label: "STNK", cm: 1.4, align: "right", numeric: true },
-  { key: "plat", label: "Plat", cm: 1.3, align: "right", numeric: true },
-  { key: "total", label: "Total", cm: 2.1, align: "right", numeric: true },
+  { key: "no", label: "No", cm: 0.6, align: "center" },
+  { key: "nopol", label: "Nopol di Samsat", cm: 1.9, align: "left" },
+  { key: "pengguna", label: "Nama Pengguna", cm: 2.2, align: "left" },
+  { key: "nama", label: "Nama Pemilik", cm: 2.2, align: "left" },
+  { key: "rangka", label: "No Rangka", cm: 2.6, align: "left" },
+  { key: "jatuhTempo", label: "Jatuh Tempo", cm: 2.2, align: "center" },
+  { key: "pokok", label: "Pokok PKB", cm: 1.8, align: "right", numeric: true },
+  { key: "dendaPkb", label: "Denda PKB", cm: 1.7, align: "right", numeric: true },
+  { key: "sanksi", label: "Sanksi Adm", cm: 1.2, align: "right", numeric: true },
+  { key: "opsen", label: "Opsen PKB", cm: 1.6, align: "right", numeric: true },
+  { key: "dendaOpsen", label: "Denda Opsen", cm: 1.4, align: "right", numeric: true },
+  { key: "swdkllj", label: "SWDKLLJ", cm: 1.4, align: "right", numeric: true },
+  { key: "dendaSwdkllj", label: "Denda SWDKLLJ", cm: 1.4, align: "right", numeric: true },
+  { key: "stnk", label: "STNK", cm: 1.3, align: "right", numeric: true },
+  { key: "plat", label: "Plat", cm: 1.2, align: "right", numeric: true },
+  { key: "total", label: "Total", cm: 2.0, align: "right", numeric: true },
 ];
 
 export function kolomLampiran(rincian: boolean): Kolom[] {
   if (rincian) return KOLOM_PENUH;
-  // Tanpa rincian tagihan: 5 kolom pertama saja, diperlebar memenuhi lebar halaman.
-  const dasar = KOLOM_PENUH.slice(0, 5);
-  const rasio = [0.06, 0.17, 0.33, 0.28, 0.16];
+  // Tanpa rincian tagihan: 6 kolom pertama saja, diperlebar memenuhi lebar halaman.
+  const dasar = KOLOM_PENUH.slice(0, 6);
+  const rasio = [0.05, 0.14, 0.22, 0.22, 0.22, 0.15];
   return dasar.map((k, i) => ({ ...k, cm: +(LEBAR_KERJA_CM * rasio[i]).toFixed(2) }));
 }
 

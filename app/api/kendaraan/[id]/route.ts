@@ -10,6 +10,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const formData = await req.formData();
   const nomor_polisi_display = (formData.get("nomor_polisi_display") as string)?.trim();
+  const nama_pengguna = formData.get("nama_pengguna") as string;
   const nama_pemilik = formData.get("nama_pemilik") as string;
   const opd_id = formData.get("opd_id") as string;
   const jenis = formData.get("jenis") as string;
@@ -25,7 +26,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       nomor_polisi_display,
       nomor_polisi: normalizeNopol(nomor_polisi_display),
       plat: platFromNopol(nomor_polisi_display),
-      nama_pemilik: toProperCase(nama_pemilik),
+      nama_pengguna: toProperCase(nama_pengguna ?? ""),
+      nama_pemilik: nama_pemilik ? toProperCase(nama_pemilik) : null,
       opd_id,
       jenis,
       merk,

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Upload, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { bacaExcel, kirimJson } from "@/lib/import/baca-excel";
+import { bacaSheetBesar } from "@/lib/import/baca-xlsx-besar";
 import { BarisNjkb, gabungTanpaDobel, uraikanNjkb } from "@/lib/import/njkb-parse";
 import { cellToString } from "@/lib/excel-helpers";
 
@@ -26,7 +27,10 @@ const KOLOM_TRANSAKSI: Record<string, string> = {
 
 const KOLOM_MASTER: Record<string, string> = {
   "nomor polisi": "nomor_polisi",
-  "nama pemilik": "nama_pemilik",
+  "nama pengguna": "nama_pengguna",
+  "nama pemilik": "nama_pengguna", // format lama: kolom ini berisi nama pengguna
+  "column2": "nama_pemilik",
+  "warna plat": "warna_plat",
   "instansi": "instansi",
   "standardized instansi": "standardized_instansi",
   "jenis kendaraan": "jenis_kendaraan",
@@ -151,10 +155,18 @@ export default function ImportBesar({ jenis }: { jenis: Jenis }) {
   async function jalankanMaster(file: File) {
     if (!kategori) throw new Error("Pilih kategori OPD terlebih dahulu.");
     setStatus(`Membaca ${file.name}... file besar bisa butuh beberapa detik`);
-    const sheets = await bacaExcel(file);
-    const sheet = sheets.find((x) => /master|clean_datamaster/i.test(x.nama)) ?? sheets[0];
-    if (!sheet) throw new Error("Sheet tidak ditemukan di file.");
-    const aoa = sheet.baris;
+    const pilihSheet = (nama: string[]) => nama.find((x) => /master|clean_datamaster/i.test(x));
+    let aoa: unknown[][];
+    if (file.size > 30 * 1024 * 1024) {
+      // file raksasa (puluhan/ratusan MB): hanya sheet yang dipilih yang dibuka, sheet lain tidak disentuh
+      setStatus(`Membuka sheet master dari file besar (${Math.round(file.size / 1048576)} MB)...`);
+      aoa = (await bacaSheetBesar(file, pilihSheet)).baris;
+    } else {
+      const sheets = await bacaExcel(file);
+      const sheet = sheets.find((x) => pilihSheet([x.nama])) ?? sheets[0];
+      if (!sheet) throw new Error("Sheet tidak ditemukan di file.");
+      aoa = sheet.baris;
+    }
     const peta: Record<number, string> = {};
     (aoa[0] ?? []).forEach((v, i) => {
       const k = cellToString(v).toLowerCase();

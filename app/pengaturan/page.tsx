@@ -26,6 +26,8 @@ const FIELD_SURAT: [string, string, "text" | "area" | "number"][] = [
   ["nama_pejabat", "Nama pejabat (kosong = ${nama_pengirim})", "text"],
   ["nip", "NIP", "text"],
   ["batas_hari", "Batas waktu pelunasan (hari kalender)", "number"],
+  ["judul_lampiran", "Judul lampiran (kosong = bawaan)", "text"],
+  ["subjudul_lampiran", "Baris kedua judul lampiran. Placeholder: {instansi}", "text"],
 ];
 
 // [kolom, label, bantuan, tipe]

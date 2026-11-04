@@ -100,7 +100,17 @@ export async function POST(req: NextRequest) {
       return {
         nomor_polisi: nomorPolisi,
         nomor_polisi_display: sumber,
-        nama_pemilik: toProperCase(cellToString(r.nama_pemilik)),
+        nama_pengguna: toProperCase(cellToString(r.nama_pengguna)),
+        nama_pemilik: (() => {
+          const n = cellToString(r.nama_pemilik);
+          return !n || /^bukan nopol/i.test(n) ? null : toProperCase(n);
+        })(),
+        warna_plat: (() => {
+          const w = cellToString(r.warna_plat).toLowerCase();
+          if (w.includes("merah")) return "Merah";
+          if (w.includes("hitam") || w.includes("putih")) return "Hitam"; // plat putih/hitam = pribadi (tarif 0,8%)
+          return null;
+        })(),
         nama_instansi: cellToString(r.standardized_instansi) || cellToString(r.instansi),
         jenis: cellToString(r.jenis_kendaraan) || null,
         merk: cellToString(r.merk) || null,
@@ -158,7 +168,9 @@ export async function POST(req: NextRequest) {
       nomor_polisi_display: r.nomor_polisi_display,
       opd_id: opdId,
       plat: r.plat,
+      nama_pengguna: r.nama_pengguna,
       nama_pemilik: r.nama_pemilik,
+      warna_plat: r.warna_plat,
       jenis: r.jenis,
       merk: r.merk,
       model: r.model,
@@ -172,7 +184,7 @@ export async function POST(req: NextRequest) {
       jatuh_tempo: r.plat === "KT" ? r.jatuh_tempo : null,
     });
   });
-  const OPSIONAL = ["kode_merk", "tanggal_awal_stnk", "kode_jenis", "cc", "kd_plat", "no_rangka"] as const;
+  const OPSIONAL = ["nama_pemilik", "warna_plat", "kode_merk", "tanggal_awal_stnk", "kode_jenis", "cc", "kd_plat", "no_rangka"] as const;
   const kelompok = new Map<string, Record<string, any>[]>();
   for (const row of payload) {
     const r: Record<string, any> = { ...row };

@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   const [{ data: opd }, { data: setelanRow }, { data: statusRows }, { data: programAktif }] = await Promise.all([
     supabase.from("opd").select("id, nama_opd").eq("id", opdId).single(),
     supabase.from("pengaturan_surat").select("*").eq("jenis", jenis).maybeSingle(),
-    supabase.from("v_kendaraan_status").select("kendaraan_id, masuk_periode_spjt").eq("opd_id", opdId),
+    supabase.from("v_kendaraan_status").select("kendaraan_id, masuk_periode_spjt, lewat_jatuh_tempo").eq("opd_id", opdId),
     supabase.from("v_pemutihan_aktif").select("nama, tanggal_mulai, tanggal_selesai").maybeSingle(),
   ]);
   if (!opd) return NextResponse.json({ error: "Instansi tidak ditemukan" }, { status: 404 });
@@ -48,15 +48,20 @@ export async function POST(req: NextRequest) {
   const tagihanAll = await perPotongan(semuaId, (p) => supabase.from("v_tagihan_pkb").select("*").in("kendaraan_id", p));
   const tagihanMap = new Map(tagihanAll.map((t) => [t.kendaraan_id as string, t]));
 
-  // SPJT: kendaraan yang masuk periode SPJT. STPD: kendaraan yang sudah menunggak (>= 1 tahun).
+  // SPJT dan STPD dipisah: SPJT = masa pajak belum lewat, STPD = masa pajak sudah lewat (menunggak).
   const terpilih =
     jenis === "SPJT"
-      ? (statusRows ?? []).filter((r) => r.masuk_periode_spjt).map((r) => r.kendaraan_id as string)
-      : semuaId.filter((id) => n(tagihanMap.get(id)?.tahun_menunggak) >= 1);
+      ? (statusRows ?? [])
+          // SPJT: masa pajak belum lewat (jatuh tempo hari ini s.d. 60 hari ke depan), tidak ada tunggakan
+          .filter((r) => r.masuk_periode_spjt && !r.lewat_jatuh_tempo && n(tagihanMap.get(r.kendaraan_id as string)?.tahun_menunggak) === 0)
+          .map((r) => r.kendaraan_id as string)
+      : (statusRows ?? [])
+          .filter((r) => r.lewat_jatuh_tempo || n(tagihanMap.get(r.kendaraan_id as string)?.tahun_menunggak) >= 1)
+          .map((r) => r.kendaraan_id as string);
 
   if (terpilih.length === 0) {
     return NextResponse.json(
-      { error: jenis === "SPJT" ? "Tidak ada kendaraan yang masuk periode SPJT untuk instansi ini" : "Tidak ada kendaraan yang menunggak untuk instansi ini" },
+      { error: jenis === "SPJT" ? "Tidak ada kendaraan yang akan jatuh tempo (masa pajak belum lewat) untuk instansi ini" : "Tidak ada kendaraan yang masa pajaknya sudah lewat (menunggak) untuk instansi ini" },
       { status: 400 }
     );
   }
@@ -64,7 +69,7 @@ export async function POST(req: NextRequest) {
   const kendaraan = await perPotongan(terpilih, (p) =>
     supabase
       .from("kendaraan")
-      .select("id, nomor_polisi_display, nama_pemilik, nama_pemilik_transaksi, no_rangka, jatuh_tempo")
+      .select("id, nomor_polisi_display, nama_pengguna, nama_pemilik, nama_pemilik_transaksi, no_rangka, jatuh_tempo")
       .in("id", p)
   );
 
@@ -77,7 +82,8 @@ export async function POST(req: NextRequest) {
     totalPotongan += n(t?.total_potongan_pemutihan);
     return {
       nopol: k.nomor_polisi_display ?? "",
-      nama: k.nama_pemilik_transaksi || k.nama_pemilik || "",
+      pengguna: k.nama_pengguna ?? "",
+      nama: k.nama_pemilik || k.nama_pemilik_transaksi || "", // nama pemilik di STNK/Samsat
       rangka: k.no_rangka ?? "",
       jatuhTempo: k.jatuh_tempo ?? null,
       pokok: v("total_pokok_pkb", "p_pokok_pkb"),

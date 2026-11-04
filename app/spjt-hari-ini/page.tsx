@@ -32,7 +32,8 @@ export default async function SpjtHariIniPage({
           <thead>
             <tr>
               <th>No. Polisi</th>
-              <th>Pemilik</th>
+              <th>Nama pengguna</th>
+              <th>Nama pemilik</th>
               <th>Instansi</th>
               <th>Merk / Model</th>
               <th>Tahun</th>
@@ -49,7 +50,8 @@ export default async function SpjtHariIniPage({
             {data?.map((k: any) => (
               <tr key={k.kendaraan_id}>
                 <td className="font-medium">{k.nomor_polisi_display}</td>
-                <td>{k.nama_pemilik}</td>
+                <td>{k.nama_pengguna}</td>
+                <td>{k.nama_pemilik ?? "-"}</td>
                 <td>{k.nama_opd}</td>
                 <td>
                   {k.merk} {k.model}

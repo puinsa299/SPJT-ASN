@@ -146,8 +146,8 @@ export async function buatDocx(d: SuratData): Promise<Buffer> {
     ? new TableRow({
         cantSplit: true,
         children: [
-          sel("Jumlah", 0, { bold: true, align: "center", span: 5, widthTwip: lebar.slice(0, 5).reduce((a, b) => a + b, 0) }),
-          ...kolom.slice(5).map((k, j) => sel(rp(tot[k.key as string]), 5 + j, { bold: true, align: "right" })),
+          sel("Jumlah", 0, { bold: true, align: "center", span: 6, widthTwip: lebar.slice(0, 6).reduce((a, b) => a + b, 0) }),
+          ...kolom.slice(6).map((k, j) => sel(rp(tot[k.key as string]), 6 + j, { bold: true, align: "right" })),
         ],
       })
     : new TableRow({
@@ -171,8 +171,8 @@ export async function buatDocx(d: SuratData): Promise<Buffer> {
     });
 
   const lampiranChildren: (Paragraph | Table)[] = [
-    judul("DAFTAR KENDARAAN JATUH TEMPO PAJAK KENDARAAN BERMOTOR"),
-    judul(`a.n. ${d.instansi}`, 160),
+    judul(isiTeks(d.setelan.judulLampiran, d.instansi, d.setelan.batasHari)),
+    judul(isiTeks(d.setelan.subjudulLampiran, d.instansi, d.setelan.batasHari), 160),
     tabel,
   ];
   if (d.pemutihan) {

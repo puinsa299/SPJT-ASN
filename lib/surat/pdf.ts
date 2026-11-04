@@ -114,12 +114,13 @@ function susunDokumen(d: SuratData) {
   const tot = totalKolom(d.baris);
   const jumlah = s.lampiranRincian
     ? [
-        sel("Jumlah", { bold: true, align: "center", span: 5 }),
+        sel("Jumlah", { bold: true, align: "center", span: 6 }),
         kosongSel,
         kosongSel,
         kosongSel,
         kosongSel,
-        ...kolom.slice(5).map((k) => sel(rp(tot[k.key as string]), { bold: true, align: "right" })),
+        kosongSel,
+        ...kolom.slice(6).map((k) => sel(rp(tot[k.key as string]), { bold: true, align: "right" })),
       ]
     : [sel(`Jumlah: ${d.baris.length} kendaraan`, { bold: true, align: "center", span: kolom.length }), ...kolom.slice(1).map(() => kosongSel)];
 
@@ -127,12 +128,12 @@ function susunDokumen(d: SuratData) {
     {
       pageBreak: "before",
       pageOrientation: "landscape",
-      text: "DAFTAR KENDARAAN JATUH TEMPO PAJAK KENDARAAN BERMOTOR",
+      text: isiTeks(d.setelan.judulLampiran, d.instansi, d.setelan.batasHari),
       bold: true,
       fontSize: 10,
       alignment: "center",
     },
-    { text: `a.n. ${d.instansi}`, bold: true, fontSize: 10, alignment: "center", margin: [0, 0, 0, 8] },
+    { text: isiTeks(d.setelan.subjudulLampiran, d.instansi, d.setelan.batasHari), bold: true, fontSize: 10, alignment: "center", margin: [0, 0, 0, 8] },
     {
       table: { headerRows: 1, dontBreakRows: true, keepWithHeaderRows: 1, widths, body: [judulTabel, ...dataTabel, jumlah] },
       layout: {
