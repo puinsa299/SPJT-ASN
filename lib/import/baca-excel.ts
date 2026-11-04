@@ -8,10 +8,19 @@ export async function bacaExcel(file: File, hanyaSheetPertama = false): Promise<
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: "array", dense: true, cellDates: false });
   const nama = hanyaSheetPertama ? wb.SheetNames.slice(0, 1) : wb.SheetNames;
-  return nama.map((n) => ({
-    nama: n,
-    baris: XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[n], { header: 1, raw: true, defval: null, blankrows: false }),
-  }));
+  return nama.map((n) => {
+    const ws: any = wb.Sheets[n];
+    // Sebagian file ekspor menyimpan ukuran sheet yang salah (mis. hanya A1) -> hitung ulang dari isi sebenarnya
+    if (Array.isArray(ws)) {
+      let maxC = 0;
+      for (const baris of ws) if (baris && baris.length > maxC) maxC = baris.length;
+      if (ws.length > 0 && maxC > 0) ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: ws.length - 1, c: maxC - 1 } });
+    }
+    return {
+      nama: n,
+      baris: XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: null, blankrows: false }),
+    };
+  });
 }
 
 // Kirim JSON ke server dengan percobaan ulang bila jaringan putus sesaat.
