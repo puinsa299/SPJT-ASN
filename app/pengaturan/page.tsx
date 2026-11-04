@@ -28,6 +28,7 @@ const FIELD_SURAT: [string, string, "text" | "area" | "number"][] = [
   ["batas_hari", "Batas waktu pelunasan (hari kalender)", "number"],
   ["judul_lampiran", "Judul lampiran (kosong = bawaan)", "text"],
   ["subjudul_lampiran", "Baris kedua judul lampiran. Placeholder: {instansi}", "text"],
+  ["keterangan_luar_daerah", "Keterangan kendaraan luar daerah di lampiran STPD (kosong = bawaan)", "text"],
 ];
 
 // [kolom, label, bantuan, tipe]

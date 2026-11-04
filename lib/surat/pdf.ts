@@ -110,7 +110,15 @@ function susunDokumen(d: SuratData) {
   const kosongSel = { text: "" };
 
   const judulTabel = kolom.map((k) => sel(k.label, { bold: true, fill: "#D9E2F3", align: "center" }));
-  const dataTabel = d.baris.map((b, n) => kolom.map((k) => sel(nilaiSel(k, b, n), { align: k.align })));
+  const ketLuar = d.setelan.keteranganLuarDaerah;
+  const dataTabel = d.baris.map((b, n) => {
+    if (b.luarDaerah && s.lampiranRincian) {
+      const depan = kolom.slice(0, 6).map((k) => sel(nilaiSel(k, b, n), { align: k.align }));
+      const sisa = kolom.length - 6;
+      return [...depan, sel(ketLuar, { bold: true, align: "center", span: sisa }), ...Array.from({ length: sisa - 1 }, () => kosongSel)];
+    }
+    return kolom.map((k) => sel(b.luarDaerah && k.key === "jatuhTempo" ? ketLuar : nilaiSel(k, b, n), { align: k.align }));
+  });
   const tot = totalKolom(d.baris);
   const jumlah = s.lampiranRincian
     ? [

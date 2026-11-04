@@ -18,6 +18,7 @@ export type BarisLampiran = {
   stnk: number;
   plat: number;
   total: number;
+  luarDaerah?: boolean; // plat luar daerah (Non KT): kolom tagihan diganti keterangan
 };
 
 export type SetelanSurat = {
@@ -32,6 +33,7 @@ export type SetelanSurat = {
   lampiranRincian: boolean;
   judulLampiran: string;
   subjudulLampiran: string; // boleh memakai {instansi}
+  keteranganLuarDaerah: string;
 };
 
 export type InfoPemutihan = {
@@ -115,6 +117,7 @@ export const SETELAN_BAWAAN: Record<JenisSurat, SetelanSurat> = {
     lampiranRincian: true,
     judulLampiran: "DAFTAR KENDARAAN JATUH TEMPO",
     subjudulLampiran: "a.n. ASN {instansi}",
+    keteranganLuarDaerah: "Kendaraan luar daerah, harap mengajukan mutasi",
   },
   STPD: {
     kota: "Samarinda",
@@ -131,6 +134,7 @@ export const SETELAN_BAWAAN: Record<JenisSurat, SetelanSurat> = {
     lampiranRincian: true,
     judulLampiran: "DAFTAR KENDARAAN MENUNGGAK PAJAK",
     subjudulLampiran: "a.n. ASN {instansi}",
+    keteranganLuarDaerah: "Kendaraan luar daerah, harap mengajukan mutasi",
   },
 };
 
@@ -148,6 +152,7 @@ type RowPengaturan = Partial<{
   lampiran_rincian: boolean | null;
   judul_lampiran: string | null;
   subjudul_lampiran: string | null;
+  keterangan_luar_daerah: string | null;
 }>;
 
 const isi = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
@@ -172,6 +177,7 @@ export function gabungSetelan(jenis: JenisSurat, row: RowPengaturan | null | und
     lampiranRincian: row?.lampiran_rincian ?? b.lampiranRincian,
     judulLampiran: isi(row?.judul_lampiran) ?? b.judulLampiran,
     subjudulLampiran: isi(row?.subjudul_lampiran) ?? b.subjudulLampiran,
+    keteranganLuarDaerah: isi(row?.keterangan_luar_daerah) ?? b.keteranganLuarDaerah,
   };
 }
 

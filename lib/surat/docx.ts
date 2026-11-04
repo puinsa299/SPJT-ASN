@@ -132,13 +132,23 @@ export async function buatDocx(d: SuratData): Promise<Buffer> {
     children: kolom.map((k, i) => sel(k.label, i, { bold: true, fill: "D9E2F3", align: "center" })),
   });
 
-  const barisData = d.baris.map(
-    (b, n) =>
-      new TableRow({
+  const ketLuar = d.setelan.keteranganLuarDaerah;
+  const barisData = d.baris.map((b, n) => {
+    if (b.luarDaerah && s.lampiranRincian) {
+      // kolom tagihan digabung jadi satu sel berisi keterangan
+      return new TableRow({
         cantSplit: true,
-        children: kolom.map((k, i) => sel(nilaiSel(k, b, n), i, { align: k.align })),
-      })
-  );
+        children: [
+          ...kolom.slice(0, 6).map((k, i) => sel(nilaiSel(k, b, n), i, { align: k.align })),
+          sel(ketLuar, 6, { bold: true, align: "center", span: kolom.length - 6, widthTwip: lebar.slice(6).reduce((a, c) => a + c, 0) }),
+        ],
+      });
+    }
+    return new TableRow({
+      cantSplit: true,
+      children: kolom.map((k, i) => sel(b.luarDaerah && k.key === "jatuhTempo" ? ketLuar : nilaiSel(k, b, n), i, { align: k.align })),
+    });
+  });
 
   const jumlahRincian = s.lampiranRincian;
   const tot = totalKolom(d.baris);

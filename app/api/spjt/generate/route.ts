@@ -59,7 +59,21 @@ export async function POST(req: NextRequest) {
           .filter((r) => r.lewat_jatuh_tempo || n(tagihanMap.get(r.kendaraan_id as string)?.tahun_menunggak) >= 1)
           .map((r) => r.kendaraan_id as string);
 
-  if (terpilih.length === 0) {
+  // STPD: kendaraan luar daerah (Non KT) milik instansi ikut dicantumkan dengan keterangan "harap mengajukan mutasi"
+  const luarDaerah =
+    jenis === "STPD"
+      ? (
+          await supabase
+            .from("kendaraan")
+            .select("id, nomor_polisi_display, nama_pengguna, nama_pemilik, nama_pemilik_transaksi, no_rangka")
+            .eq("opd_id", opdId)
+            .eq("status", "Aktif")
+            .eq("plat", "Non KT")
+            .order("nomor_polisi_display")
+        ).data ?? []
+      : [];
+
+  if (terpilih.length === 0 && luarDaerah.length === 0) {
     return NextResponse.json(
       { error: jenis === "SPJT" ? "Tidak ada kendaraan yang akan jatuh tempo (masa pajak belum lewat) untuk instansi ini" : "Tidak ada kendaraan yang masa pajaknya sudah lewat (menunggak) untuk instansi ini" },
       { status: 400 }
@@ -99,6 +113,18 @@ export async function POST(req: NextRequest) {
     };
   });
   baris.sort((a, b) => (a.jatuhTempo ?? "9").localeCompare(b.jatuhTempo ?? "9") || a.nopol.localeCompare(b.nopol));
+  // kendaraan luar daerah ditaruh di bagian akhir daftar
+  for (const k of luarDaerah) {
+    baris.push({
+      nopol: k.nomor_polisi_display ?? "",
+      pengguna: k.nama_pengguna ?? "",
+      nama: k.nama_pemilik || k.nama_pemilik_transaksi || "",
+      rangka: k.no_rangka ?? "",
+      jatuhTempo: null,
+      pokok: 0, dendaPkb: 0, sanksi: 0, opsen: 0, dendaOpsen: 0, swdkllj: 0, dendaSwdkllj: 0, stnk: 0, plat: 0, total: 0,
+      luarDaerah: true,
+    });
+  }
 
   const pemutihan: InfoPemutihan = programAktif
     ? { nama: programAktif.nama, mulai: programAktif.tanggal_mulai, selesai: programAktif.tanggal_selesai, totalPotongan }

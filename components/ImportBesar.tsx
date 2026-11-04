@@ -187,9 +187,13 @@ export default function ImportBesar({ jenis }: { jenis: Jenis }) {
       aoa = sheet.baris;
     }
     const peta: Record<number, string> = {};
-    (aoa[0] ?? []).forEach((v, i) => {
-      const k = cellToString(v).toLowerCase();
-      if (KOLOM_MASTER[k]) peta[i] = KOLOM_MASTER[k];
+    const judul = (aoa[0] ?? []).map((v) => cellToString(v).trim().toLowerCase());
+    // File format baru punya kolom "Nama Pengguna" sendiri: maka "Nama Pemilik" memang nama pemilik.
+    // File format lama (tanpa "Nama Pengguna"): kolom "Nama Pemilik" berisi nama pengguna.
+    const formatBaru = judul.includes("nama pengguna");
+    judul.forEach((k, i) => {
+      if (k === "nama pemilik") peta[i] = formatBaru ? "nama_pemilik" : "nama_pengguna";
+      else if (KOLOM_MASTER[k]) peta[i] = KOLOM_MASTER[k];
     });
     if (Object.keys(peta).length === 0) throw new Error("Header kolom tidak dikenali. Pastikan file sesuai format clean_datamaster_smd.");
 
