@@ -102,24 +102,33 @@ export default function ImportBesar({ jenis }: { jenis: Jenis }) {
     for (let f = 0; f < files.length; f++) {
       const file = files[f];
       setStatus(`Membaca ${file.name} (${f + 1}/${files.length})... file besar bisa butuh beberapa detik`);
-      const [sheet] = await bacaExcel(file, true);
-      const aoa = sheet?.baris ?? [];
+      const semuaSheet = await bacaExcel(file, false);
 
-      // cari baris judul kolom (5 baris pertama)
+      // cari sheet + baris judul kolom (5 baris pertama tiap sheet)
+      let aoa: unknown[][] = [];
       let h = -1;
       let peta: Record<number, string> = {};
-      for (let r = 0; r < Math.min(5, aoa.length) && h < 0; r++) {
-        const p: Record<number, string> = {};
-        aoa[r].forEach((v, i) => {
-          const k = samakan(v);
-          if (KOLOM_TRANSAKSI[k]) p[i] = KOLOM_TRANSAKSI[k];
-        });
-        if (Object.values(p).includes("nomor_polisi")) {
-          h = r;
-          peta = p;
+      for (const sheet of semuaSheet) {
+        for (let r = 0; r < Math.min(5, sheet.baris.length) && h < 0; r++) {
+          const p: Record<number, string> = {};
+          sheet.baris[r].forEach((v, i) => {
+            const k = samakan(v);
+            if (KOLOM_TRANSAKSI[k]) p[i] = KOLOM_TRANSAKSI[k];
+          });
+          if (Object.values(p).includes("nomor_polisi")) {
+            h = r;
+            peta = p;
+            aoa = sheet.baris;
+          }
         }
+        if (h >= 0) break;
       }
-      if (h < 0) throw new Error(`${file.name}: kolom nomor polisi tidak ditemukan di 5 baris pertama sheet pertama. Judul yang terbaca: ${(aoa[0] ?? []).slice(0, 8).map((v) => cellToString(v)).join(" | ")}`);
+      if (h < 0) {
+        const rincian = semuaSheet
+          .map((sh) => `sheet "${sh.nama}": ${sh.baris.length} baris, judul terbaca: ${(sh.baris[0] ?? []).slice(0, 6).map((v) => cellToString(v)).join(" | ") || "(kosong)"}`)
+          .join("; ");
+        throw new Error(`${file.name}: kolom nomor polisi tidak ditemukan. ${rincian}`);
+      }
 
       const rows: Record<string, unknown>[] = [];
       for (let r = h + 1; r < aoa.length; r++) {
