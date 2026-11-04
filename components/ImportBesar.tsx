@@ -9,8 +9,18 @@ import { cellToString } from "@/lib/excel-helpers";
 
 type Jenis = "transaksi" | "njkb" | "master";
 
+// Judul kolom disamakan dulu: huruf kecil, spasi/titik/garis jadi satu "_" (jadi "no polisi", "No.Polisi", "no_polisi" dianggap sama)
+const samakan = (v: unknown) =>
+  cellToString(v)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
 const KOLOM_TRANSAKSI: Record<string, string> = {
   no_polisi: "nomor_polisi",
+  nomor_polisi: "nomor_polisi",
+  nopol: "nomor_polisi",
+  no_pol: "nomor_polisi",
   nm_pemilik: "nm_pemilik",
   tgl_bayar: "tgl_bayar",
   tgl_akhir_pkb: "tgl_akhir_pkb",
@@ -101,7 +111,7 @@ export default function ImportBesar({ jenis }: { jenis: Jenis }) {
       for (let r = 0; r < Math.min(5, aoa.length) && h < 0; r++) {
         const p: Record<number, string> = {};
         aoa[r].forEach((v, i) => {
-          const k = cellToString(v).toLowerCase();
+          const k = samakan(v);
           if (KOLOM_TRANSAKSI[k]) p[i] = KOLOM_TRANSAKSI[k];
         });
         if (Object.values(p).includes("nomor_polisi")) {
@@ -109,7 +119,7 @@ export default function ImportBesar({ jenis }: { jenis: Jenis }) {
           peta = p;
         }
       }
-      if (h < 0) throw new Error(`${file.name}: kolom "no_polisi" tidak ditemukan di baris judul.`);
+      if (h < 0) throw new Error(`${file.name}: kolom nomor polisi tidak ditemukan di 5 baris pertama sheet pertama. Judul yang terbaca: ${(aoa[0] ?? []).slice(0, 8).map((v) => cellToString(v)).join(" | ")}`);
 
       const rows: Record<string, unknown>[] = [];
       for (let r = h + 1; r < aoa.length; r++) {
