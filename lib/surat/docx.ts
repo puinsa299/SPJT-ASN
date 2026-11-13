@@ -29,6 +29,7 @@ import {
   catatanPemutihan,
   isiTeks,
   kolomLampiran,
+  N_DASAR,
   nilaiSel,
   rp,
   tanggalPanjang,
@@ -139,8 +140,8 @@ export async function buatDocx(d: SuratData): Promise<Buffer> {
       return new TableRow({
         cantSplit: true,
         children: [
-          ...kolom.slice(0, 6).map((k, i) => sel(nilaiSel(k, b, n), i, { align: k.align })),
-          sel(ketLuar, 6, { bold: true, align: "center", span: kolom.length - 6, widthTwip: lebar.slice(6).reduce((a, c) => a + c, 0) }),
+          ...kolom.slice(0, N_DASAR).map((k, i) => sel(nilaiSel(k, b, n), i, { align: k.align })),
+          sel(ketLuar, N_DASAR, { bold: true, align: "center", span: kolom.length - N_DASAR, widthTwip: lebar.slice(N_DASAR).reduce((a, c) => a + c, 0) }),
         ],
       });
     }
@@ -156,8 +157,8 @@ export async function buatDocx(d: SuratData): Promise<Buffer> {
     ? new TableRow({
         cantSplit: true,
         children: [
-          sel("Jumlah", 0, { bold: true, align: "center", span: 6, widthTwip: lebar.slice(0, 6).reduce((a, b) => a + b, 0) }),
-          ...kolom.slice(6).map((k, j) => sel(rp(tot[k.key as string]), 6 + j, { bold: true, align: "right" })),
+          sel("Jumlah", 0, { bold: true, align: "center", span: N_DASAR, widthTwip: lebar.slice(0, N_DASAR).reduce((a, b) => a + b, 0) }),
+          ...kolom.slice(N_DASAR).map((k, j) => sel(rp(tot[k.key as string]), N_DASAR + j, { bold: true, align: "right" })),
         ],
       })
     : new TableRow({

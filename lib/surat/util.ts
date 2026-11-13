@@ -6,6 +6,9 @@ export type BarisLampiran = {
   nopol: string;
   pengguna: string; // nama pengguna (ASN pemakai)
   nama: string; // nama pemilik di STNK/Samsat
+  merk: string;
+  model: string;
+  tahun: string;
   rangka: string;
   jatuhTempo: string | null; // yyyy-mm-dd
   pokok: number;
@@ -15,8 +18,6 @@ export type BarisLampiran = {
   dendaOpsen: number;
   swdkllj: number;
   dendaSwdkllj: number;
-  stnk: number;
-  plat: number;
   total: number;
   luarDaerah?: boolean; // plat luar daerah (Non KT): kolom tagihan diganti keterangan
 };
@@ -203,30 +204,33 @@ export type Kolom = {
 
 export const LEBAR_KERJA_CM = 26.7;
 
+export const N_DASAR = 9; // No s.d. Jatuh Tempo (kolom identitas kendaraan)
+
 const KOLOM_PENUH: Kolom[] = [
   { key: "no", label: "No", cm: 0.6, align: "center" },
-  { key: "nopol", label: "Nopol di Samsat", cm: 1.9, align: "left" },
-  { key: "pengguna", label: "Nama Pengguna", cm: 2.2, align: "left" },
-  { key: "nama", label: "Nama Pemilik", cm: 2.2, align: "left" },
-  { key: "rangka", label: "No Rangka", cm: 2.6, align: "left" },
-  { key: "jatuhTempo", label: "Jatuh Tempo", cm: 2.2, align: "center" },
-  { key: "pokok", label: "Pokok PKB", cm: 1.8, align: "right", numeric: true },
-  { key: "dendaPkb", label: "Denda PKB", cm: 1.7, align: "right", numeric: true },
-  { key: "sanksi", label: "Sanksi Adm", cm: 1.2, align: "right", numeric: true },
-  { key: "opsen", label: "Opsen PKB", cm: 1.6, align: "right", numeric: true },
-  { key: "dendaOpsen", label: "Denda Opsen", cm: 1.4, align: "right", numeric: true },
-  { key: "swdkllj", label: "SWDKLLJ", cm: 1.4, align: "right", numeric: true },
-  { key: "dendaSwdkllj", label: "Denda SWDKLLJ", cm: 1.4, align: "right", numeric: true },
-  { key: "stnk", label: "STNK", cm: 1.3, align: "right", numeric: true },
-  { key: "plat", label: "Plat", cm: 1.2, align: "right", numeric: true },
-  { key: "total", label: "Total", cm: 2.0, align: "right", numeric: true },
+  { key: "nopol", label: "Nopol di Samsat", cm: 1.8, align: "left" },
+  { key: "pengguna", label: "Nama Pengguna", cm: 1.9, align: "left" },
+  { key: "nama", label: "Nama Pemilik", cm: 1.9, align: "left" },
+  { key: "merk", label: "Merk", cm: 1.4, align: "left" },
+  { key: "model", label: "Model", cm: 2.1, align: "left" },
+  { key: "tahun", label: "Tahun", cm: 1.1, align: "center" },
+  { key: "rangka", label: "No Rangka", cm: 2.3, align: "left" },
+  { key: "jatuhTempo", label: "Jatuh Tempo", cm: 2.0, align: "center" },
+  { key: "pokok", label: "Pokok PKB", cm: 1.7, align: "right", numeric: true },
+  { key: "dendaPkb", label: "Denda PKB", cm: 1.5, align: "right", numeric: true },
+  { key: "sanksi", label: "Sanksi Adm", cm: 1.1, align: "right", numeric: true },
+  { key: "opsen", label: "Opsen PKB", cm: 1.5, align: "right", numeric: true },
+  { key: "dendaOpsen", label: "Denda Opsen", cm: 1.3, align: "right", numeric: true },
+  { key: "swdkllj", label: "SWDKLLJ", cm: 1.5, align: "right", numeric: true },
+  { key: "dendaSwdkllj", label: "Denda SWDKLLJ", cm: 1.3, align: "right", numeric: true },
+  { key: "total", label: "Total", cm: 1.7, align: "right", numeric: true },
 ];
 
 export function kolomLampiran(rincian: boolean): Kolom[] {
   if (rincian) return KOLOM_PENUH;
-  // Tanpa rincian tagihan: 6 kolom pertama saja, diperlebar memenuhi lebar halaman.
-  const dasar = KOLOM_PENUH.slice(0, 6);
-  const rasio = [0.05, 0.14, 0.22, 0.22, 0.22, 0.15];
+  // Tanpa rincian tagihan: kolom identitas saja, diperlebar memenuhi lebar halaman.
+  const dasar = KOLOM_PENUH.slice(0, N_DASAR);
+  const rasio = [0.04, 0.09, 0.12, 0.12, 0.09, 0.15, 0.06, 0.17, 0.16];
   return dasar.map((k, i) => ({ ...k, cm: +(LEBAR_KERJA_CM * rasio[i]).toFixed(2) }));
 }
 

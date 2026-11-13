@@ -1,6 +1,6 @@
 // Pembaca .xlsx hemat memori untuk file RAKSASA (mis. 220 MB berisi sheet dengan 750 ribu baris).
 // Hanya sheet yang diminta (dan tabel teks bersama) yang dibuka; sheet lain tidak pernah dibongkar.
-import { unzip } from "fflate";
+import { unzip, Unzip, UnzipInflate } from "fflate";
 
 const dec = new TextDecoder("utf-8");
 
@@ -70,23 +70,19 @@ export async function bacaSheetBesar(
   target = target.replace(/^\//, "");
   const path = target.startsWith("xl/") ? target : `xl/${target}`;
 
-  const isi = await buka(data, [path, "xl/sharedStrings.xml"]);
-  const sheetXml = isi[path];
-  if (!sheetXml) throw new Error(`Isi sheet "${sh.nama}" tidak ditemukan di file.`);
-  const xml = dec.decode(sheetXml);
-
-  // ---- 1. baca sel; kumpulkan indeks teks bersama yang dipakai ----
+  // ---- 1. baca sheet secara BERTAHAP (stream) dan berhenti di baris data terakhir ----
+  // File ekspor Excel kadang berisi jutaan baris "kosong" berisi angka 0 di bawah data sebenarnya
+  // (tabel diperpanjang sampai baris 1.048.576). Baris tanpa isi di kolom A-C dianggap kosong,
+  // dan pembacaan dihentikan setelah 1000 baris kosong berturut-turut.
   type Sel = { r: number; c: number; t: string; v: string };
   const sel: Sel[] = [];
   const perlu = new Set<number>();
-  const reRow = /<row\b[^>]*>([\s\S]*?)<\/row>/g;
   const reC = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
-  let mr: RegExpExecArray | null;
-  let nomorBaris = 0;
-  while ((mr = reRow.exec(xml))) {
-    nomorBaris++;
+  const proses = (isiBaris: string): boolean => {
+    // mengembalikan true bila baris ini berisi data
+    const sementara: Sel[] = [];
+    let adaData = false;
     reC.lastIndex = 0;
-    const isiBaris = mr[1];
     let mc: RegExpExecArray | null;
     while ((mc = reC.exec(isiBaris))) {
       const attr = mc[1];
@@ -101,10 +97,62 @@ export async function bacaSheetBesar(
         if (!mv) continue;
         v = mv[1];
       }
-      if (t === "s") perlu.add(parseInt(v, 10));
-      sel.push({ r: parseInt(ref[2], 10) - 1, c: kolomKeIndeks(ref[1]), t, v });
+      const c = kolomKeIndeks(ref[1]);
+      if (c <= 2 && v !== "") adaData = true;
+      sementara.push({ r: parseInt(ref[2], 10) - 1, c, t, v });
     }
-  }
+    if (adaData) {
+      for (const x of sementara) {
+        if (x.t === "s") perlu.add(parseInt(x.v, 10));
+        sel.push(x);
+      }
+    }
+    return adaData;
+  };
+
+  await new Promise<void>((resolve, reject) => {
+    const uz = new Unzip();
+    uz.register(UnzipInflate);
+    let ditemukan = false;
+    uz.onfile = (f) => {
+      if (f.name !== path) return;
+      ditemukan = true;
+      const dek = new TextDecoder("utf-8");
+      let sisa = "";
+      let kosongBerturut = 0;
+      let selesai = false;
+      f.ondata = (err, chunk, final) => {
+        if (err) return reject(err);
+        if (selesai) return;
+        sisa += dek.decode(chunk, { stream: !final });
+        const reRow = /<row\b[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g;
+        let akhir = 0;
+        let m: RegExpExecArray | null;
+        while ((m = reRow.exec(sisa))) {
+          akhir = reRow.lastIndex;
+          if (proses(m[1] ?? "")) kosongBerturut = 0;
+          else if (++kosongBerturut >= 1000 && sel.length > 0) {
+            selesai = true;
+            f.terminate();
+            resolve();
+            return;
+          }
+        }
+        sisa = sisa.slice(akhir);
+        if (final) resolve();
+      };
+      f.start();
+    };
+    try {
+      uz.push(data, true);
+    } catch (e) {
+      reject(e);
+      return;
+    }
+    if (!ditemukan) reject(new Error(`Isi sheet "${sh.nama}" tidak ditemukan di file.`));
+  });
+
+  const isi = await buka(data, ["xl/sharedStrings.xml"]);
 
   // ---- 2. ambil hanya teks bersama yang diperlukan (tabel teks bisa 100+ MB) ----
   const teks = new Map<number, string>();

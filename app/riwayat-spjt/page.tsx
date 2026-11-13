@@ -73,6 +73,7 @@ function StatusForm({ id, current }: { id: string; current: string }) {
         <option>Sudah Dikirim</option>
         <option>Sudah Diterima</option>
       </select>
+      <button className="text-xs text-primary-600 hover:underline ml-2">Simpan</button>
     </form>
   );
 }

@@ -5,6 +5,7 @@ import {
   catatanPemutihan,
   isiTeks,
   kolomLampiran,
+  N_DASAR,
   nilaiSel,
   rp,
   tanggalPanjang,
@@ -113,8 +114,8 @@ function susunDokumen(d: SuratData) {
   const ketLuar = d.setelan.keteranganLuarDaerah;
   const dataTabel = d.baris.map((b, n) => {
     if (b.luarDaerah && s.lampiranRincian) {
-      const depan = kolom.slice(0, 6).map((k) => sel(nilaiSel(k, b, n), { align: k.align }));
-      const sisa = kolom.length - 6;
+      const depan = kolom.slice(0, N_DASAR).map((k) => sel(nilaiSel(k, b, n), { align: k.align }));
+      const sisa = kolom.length - N_DASAR;
       return [...depan, sel(ketLuar, { bold: true, align: "center", span: sisa }), ...Array.from({ length: sisa - 1 }, () => kosongSel)];
     }
     return kolom.map((k) => sel(b.luarDaerah && k.key === "jatuhTempo" ? ketLuar : nilaiSel(k, b, n), { align: k.align }));
@@ -122,13 +123,9 @@ function susunDokumen(d: SuratData) {
   const tot = totalKolom(d.baris);
   const jumlah = s.lampiranRincian
     ? [
-        sel("Jumlah", { bold: true, align: "center", span: 6 }),
-        kosongSel,
-        kosongSel,
-        kosongSel,
-        kosongSel,
-        kosongSel,
-        ...kolom.slice(6).map((k) => sel(rp(tot[k.key as string]), { bold: true, align: "right" })),
+        sel("Jumlah", { bold: true, align: "center", span: N_DASAR }),
+        ...Array.from({ length: N_DASAR - 1 }, () => kosongSel),
+        ...kolom.slice(N_DASAR).map((k) => sel(rp(tot[k.key as string]), { bold: true, align: "right" })),
       ]
     : [sel(`Jumlah: ${d.baris.length} kendaraan`, { bold: true, align: "center", span: kolom.length }), ...kolom.slice(1).map(() => kosongSel)];
 

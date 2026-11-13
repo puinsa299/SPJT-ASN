@@ -3,9 +3,10 @@
 import { useRef, useState } from "react";
 import { Upload, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { bacaExcel, kirimJson } from "@/lib/import/baca-excel";
-import { bacaSheetBesar } from "@/lib/import/baca-xlsx-besar";
+import { bacaSheetBesar, daftarSheet } from "@/lib/import/baca-xlsx-besar";
 import { BarisNjkb, gabungTanpaDobel, uraikanNjkb } from "@/lib/import/njkb-parse";
 import { cellToString } from "@/lib/excel-helpers";
+import { normalizeNopol } from "@/lib/nopol";
 
 type Jenis = "transaksi" | "njkb" | "master";
 
@@ -64,7 +65,19 @@ const KOLOM_MASTER: Record<string, string> = {
   "kd_plat": "kd_plat",
   "no_chasis": "no_rangka",
   "no rangka": "no_rangka",
+  // format "Book2" (Master + SMD 2026)
+  "nopol asli": "nomor_polisi",
+  "instansi / opd": "instansi",
+  "opd normalisasi": "standardized_instansi",
+  "jenis kb": "kode_jenis",
+  "merk": "merk",
+  "model": "model",
+  "tahun": "tahun",
+  "akhir pkb samsat": "tanggal_jatuh_tempo",
 };
+
+// File di atas ukuran ini dibaca dengan pembaca hemat memori (bertahap), bukan SheetJS
+const BATAS_FILE_BESAR = 5 * 1024 * 1024;
 
 const UKURAN_POTONGAN = 1000;
 
@@ -102,7 +115,18 @@ export default function ImportBesar({ jenis }: { jenis: Jenis }) {
     for (let f = 0; f < files.length; f++) {
       const file = files[f];
       setStatus(`Membaca ${file.name} (${f + 1}/${files.length})... file besar bisa butuh beberapa detik`);
-      const semuaSheet = await bacaExcel(file, false);
+      let semuaSheet: { nama: string; baris: unknown[][] }[];
+      if (file.size > BATAS_FILE_BESAR) {
+        setStatus(`Membuka ${file.name} (${Math.round(file.size / 1048576)} MB)...`);
+        semuaSheet = [];
+        for (const nm of await daftarSheet(file)) {
+          const sh = await bacaSheetBesar(file, () => nm);
+          semuaSheet.push(sh);
+          if (sh.baris.slice(0, 5).some((br) => br.some((v) => KOLOM_TRANSAKSI[samakan(v)] === "nomor_polisi"))) break;
+        }
+      } else {
+        semuaSheet = await bacaExcel(file, false);
+      }
 
       // cari sheet + baris judul kolom (5 baris pertama tiap sheet)
       let aoa: unknown[][] = [];
@@ -174,9 +198,9 @@ export default function ImportBesar({ jenis }: { jenis: Jenis }) {
   async function jalankanMaster(file: File) {
     if (!kategori) throw new Error("Pilih kategori OPD terlebih dahulu.");
     setStatus(`Membaca ${file.name}... file besar bisa butuh beberapa detik`);
-    const pilihSheet = (nama: string[]) => nama.find((x) => /master|clean_datamaster/i.test(x));
+    const pilihSheet = (nama: string[]) => nama.find((x) => /master|clean_datamaster/i.test(x)) ?? nama[0];
     let aoa: unknown[][];
-    if (file.size > 30 * 1024 * 1024) {
+    if (file.size > BATAS_FILE_BESAR) {
       // file raksasa (puluhan/ratusan MB): hanya sheet yang dipilih yang dibuka, sheet lain tidak disentuh
       setStatus(`Membuka sheet master dari file besar (${Math.round(file.size / 1048576)} MB)...`);
       aoa = (await bacaSheetBesar(file, pilihSheet)).baris;
@@ -198,10 +222,20 @@ export default function ImportBesar({ jenis }: { jenis: Jenis }) {
     if (Object.keys(peta).length === 0) throw new Error("Header kolom tidak dikenali. Pastikan file sesuai format clean_datamaster_smd.");
 
     const rows: Record<string, unknown>[] = [];
+    const nopolDilewati: string[] = []; // tidak dimasukkan ke sistem, tapi tidak boleh ikut ditandai non-aktif
     for (let r = 1; r < aoa.length; r++) {
       const rec: Record<string, unknown> = {};
       for (const [i, nama] of Object.entries(peta)) rec[nama] = aoa[r][Number(i)] ?? null;
-      if (rec.nomor_polisi) rows.push(rec);
+      if (!rec.nomor_polisi) continue;
+      // Nama pemilik tidak ditemukan -> tidak dimasukkan, kecuali nopol luar daerah (Non KT) tetap dimasukkan
+      const pemilik = cellToString(rec.nama_pemilik);
+      const tidakDitemukan = /tidak\s+ditemukan|bukan\s+nopol/i.test(pemilik);
+      const nopolNorm = normalizeNopol(cellToString(rec.nopol_cleaned) || cellToString(rec.nomor_polisi));
+      if (tidakDitemukan && nopolNorm.startsWith("KT")) {
+        nopolDilewati.push(nopolNorm);
+        continue;
+      }
+      rows.push(rec);
     }
     if (rows.length === 0) throw new Error("Tidak ada baris data terbaca dari file.");
 
@@ -217,12 +251,13 @@ export default function ImportBesar({ jenis }: { jenis: Jenis }) {
       setPersen(Math.round((Math.min(i + UKURAN_POTONGAN, rows.length) / rows.length) * 95));
     }
     setStatus("Menyelesaikan: menandai kendaraan yang tidak ada di file terbaru...");
-    const nopol = rows.map((r) => String(r.nopol_cleaned || r.nomor_polisi));
+    const nopol = [...rows.map((r) => String(r.nopol_cleaned || r.nomor_polisi)), ...nopolDilewati];
     const akhir = await kirimJson<{ nonaktif: number }>("/api/import/master", { selesai: true, kategori, nopol, nama_file: file.name, total });
     setPersen(100);
     setHasil([
       `${total.ditambah} kendaraan ditambah, ${total.diupdate} diperbarui, ${total.bayar_baru} pembayaran baru tercatat.`,
       `${akhir.nonaktif} kendaraan ditandai non-aktif (tidak ada di data terbaru).`,
+      ...(nopolDilewati.length > 0 ? [`${nopolDilewati.length} baris plat KT tidak dimasukkan karena nama pemilik tidak ditemukan (plat luar daerah tetap dimasukkan).`] : []),
       ...(total.opd_baru > 0 ? [`${total.opd_baru} OPD baru dibuat — cek dan verifikasi di menu Data OPD.`] : []),
       ...(total.tanpa_instansi > 0 ? [`${total.tanpa_instansi} baris dilewati karena kolom instansi kosong.`] : []),
     ]);

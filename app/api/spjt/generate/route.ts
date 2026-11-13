@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       ? (
           await supabase
             .from("kendaraan")
-            .select("id, nomor_polisi_display, nama_pengguna, nama_pemilik, nama_pemilik_transaksi, no_rangka")
+            .select("id, nomor_polisi_display, nama_pengguna, nama_pemilik, nama_pemilik_transaksi, no_rangka, merk, model, tahun")
             .eq("opd_id", opdId)
             .eq("status", "Aktif")
             .eq("plat", "Non KT")
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   const kendaraan = await perPotongan(terpilih, (p) =>
     supabase
       .from("kendaraan")
-      .select("id, nomor_polisi_display, nama_pengguna, nama_pemilik, nama_pemilik_transaksi, no_rangka, jatuh_tempo")
+      .select("id, nomor_polisi_display, nama_pengguna, nama_pemilik, nama_pemilik_transaksi, no_rangka, jatuh_tempo, merk, model, tahun")
       .in("id", p)
   );
 
@@ -98,6 +98,9 @@ export async function POST(req: NextRequest) {
       nopol: k.nomor_polisi_display ?? "",
       pengguna: k.nama_pengguna ?? "",
       nama: k.nama_pemilik || k.nama_pemilik_transaksi || "", // nama pemilik di STNK/Samsat
+      merk: k.merk ?? "",
+      model: k.model ?? "",
+      tahun: k.tahun ? String(k.tahun) : "",
       rangka: k.no_rangka ?? "",
       jatuhTempo: k.jatuh_tempo ?? null,
       pokok: v("total_pokok_pkb", "p_pokok_pkb"),
@@ -107,8 +110,6 @@ export async function POST(req: NextRequest) {
       dendaOpsen: v("total_denda_opsen", "p_denda_opsen"),
       swdkllj: v("total_swdkllj", "p_swdkllj"),
       dendaSwdkllj: v("total_denda_swdkllj", "p_denda_swdkllj"),
-      stnk: v("total_stnk", "p_stnk"),
-      plat: v("total_plat", "p_plat"),
       total: v("total_tagihan_normal", "total_tagihan_setelah_pemutihan"),
     };
   });
@@ -119,9 +120,12 @@ export async function POST(req: NextRequest) {
       nopol: k.nomor_polisi_display ?? "",
       pengguna: k.nama_pengguna ?? "",
       nama: k.nama_pemilik || k.nama_pemilik_transaksi || "",
+      merk: k.merk ?? "",
+      model: k.model ?? "",
+      tahun: k.tahun ? String(k.tahun) : "",
       rangka: k.no_rangka ?? "",
       jatuhTempo: null,
-      pokok: 0, dendaPkb: 0, sanksi: 0, opsen: 0, dendaOpsen: 0, swdkllj: 0, dendaSwdkllj: 0, stnk: 0, plat: 0, total: 0,
+      pokok: 0, dendaPkb: 0, sanksi: 0, opsen: 0, dendaOpsen: 0, swdkllj: 0, dendaSwdkllj: 0, total: 0,
       luarDaerah: true,
     });
   }
