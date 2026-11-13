@@ -92,7 +92,25 @@ export async function POST(req: NextRequest) {
   );
   hasilTerakhir.forEach((h) => (h.data ?? []).forEach((p: any) => p.tanggal_bayar_terakhir && terakhirMap.set(p.kendaraan_id, p.tanggal_bayar_terakhir)));
 
-  const barisBaru = cocok.filter((r) => terakhirMap.get(kendaraanMap.get(r.nomor_polisi)!.id) !== r.tanggal_bayar);
+  // Realisasi dari fitur Import Hasil Cek (tanpa nominal) digantikan transaksi asli untuk nopol + tanggal bayar yang sama.
+  const hasilCek = new Map<string, string[]>(); // "kendaraan_id|tanggal" -> id catatan hasil cek
+  const hcRes = await Promise.all(
+    potong(ids, KUNCI).map((p) => supabase.from("transaksi_pembayaran").select("id, kendaraan_id, tanggal_bayar").in("kendaraan_id", p).not("sumber", "is", null))
+  );
+  hcRes.forEach((h) =>
+    (h.data ?? []).forEach((t: any) => {
+      const k = `${t.kendaraan_id}|${t.tanggal_bayar}`;
+      hasilCek.set(k, [...(hasilCek.get(k) ?? []), t.id]);
+    })
+  );
+  const kunciHC = (r: (typeof cocok)[number]) => `${kendaraanMap.get(r.nomor_polisi)!.id}|${r.tanggal_bayar}`;
+  const idHapus: string[] = [];
+  cocok.forEach((r) => (hasilCek.get(kunciHC(r)) ?? []).forEach((id) => idHapus.push(id)));
+  for (const p of potong(Array.from(new Set(idHapus)), KUNCI)) {
+    const { error } = await supabase.from("transaksi_pembayaran").delete().in("id", p);
+    if (error) return NextResponse.json({ error: `Gagal mengganti catatan Hasil Cek: ${error.message}` }, { status: 500 });
+  }
+  const barisBaru = cocok.filter((r) => hasilCek.has(kunciHC(r)) || terakhirMap.get(kendaraanMap.get(r.nomor_polisi)!.id) !== r.tanggal_bayar);
   const transaksiPayload = barisBaru.map((r) => ({
     kendaraan_id: kendaraanMap.get(r.nomor_polisi)!.id,
     tanggal_bayar: r.tanggal_bayar,

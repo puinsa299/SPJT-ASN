@@ -28,7 +28,7 @@ const MENU = [
   { href: "/spjt-hari-ini", label: "SPJT Hari Ini", warna: "bg-white/10 text-white", icon: CalendarCheck },
   { href: "/statistik", label: "Statistik", warna: "bg-white/10 text-white", icon: BarChart3 },
   { href: "/profiling", label: "Profiling", warna: "bg-white/10 text-white", icon: IdCard },
-  { href: "/riwayat-spjt", label: "Riwayat SPJT", warna: "bg-white/10 text-white", icon: History },
+  { href: "/riwayat-spjt", label: "Riwayat SPJT/STPD", warna: "bg-white/10 text-white", icon: History },
   { href: "/histori", label: "Histori Data", warna: "bg-white/10 text-white", icon: FileClock },
   { href: "/import", label: "Import Data", warna: "bg-white/10 text-white", icon: Upload },
   { href: "/export", label: "Export Data", warna: "bg-white/10 text-white", icon: Download },

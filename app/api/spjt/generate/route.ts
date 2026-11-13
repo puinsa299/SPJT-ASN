@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   const [{ data: opd }, { data: setelanRow }, { data: statusRows }, { data: programAktif }] = await Promise.all([
     supabase.from("opd").select("id, nama_opd").eq("id", opdId).single(),
     supabase.from("pengaturan_surat").select("*").eq("jenis", jenis).maybeSingle(),
-    supabase.from("v_kendaraan_status").select("kendaraan_id, masuk_periode_spjt, lewat_jatuh_tempo").eq("opd_id", opdId),
+    supabase.from("v_kendaraan_status").select("kendaraan_id, masuk_periode_spjt, lewat_jatuh_tempo, jatuh_tempo").eq("opd_id", opdId),
     supabase.from("v_pemutihan_aktif").select("nama, tanggal_mulai, tanggal_selesai").maybeSingle(),
   ]);
   if (!opd) return NextResponse.json({ error: "Instansi tidak ditemukan" }, { status: 404 });
@@ -48,14 +48,29 @@ export async function POST(req: NextRequest) {
   const tagihanAll = await perPotongan(semuaId, (p) => supabase.from("v_tagihan_pkb").select("*").in("kendaraan_id", p));
   const tagihanMap = new Map(tagihanAll.map((t) => [t.kendaraan_id as string, t]));
 
+  // Kendaraan yang sudah membayar sampai melewati jatuh tempo yang tercatat (masa pajak pembayaran terakhir
+  // lebih baru dari jatuh tempo di aplikasi) tidak dimasukkan lagi ke SPJT/STPD.
+  const bayarAll = await perPotongan(semuaId, (p) => supabase.from("v_kendaraan_pembayaran_terakhir").select("kendaraan_id, masa_pajak_periode").in("kendaraan_id", p));
+  const masaBayar = new Map(bayarAll.map((b) => [b.kendaraan_id as string, b.masa_pajak_periode as string | null]));
+  const sudahBayar = new Set(
+    (statusRows ?? [])
+      .filter((r) => {
+        const m = masaBayar.get(r.kendaraan_id as string);
+        return !!m && !!r.jatuh_tempo && m > (r.jatuh_tempo as string);
+      })
+      .map((r) => r.kendaraan_id as string)
+  );
+
   // SPJT dan STPD dipisah: SPJT = masa pajak belum lewat, STPD = masa pajak sudah lewat (menunggak).
   const terpilih =
     jenis === "SPJT"
       ? (statusRows ?? [])
+          .filter((r) => !sudahBayar.has(r.kendaraan_id as string))
           // SPJT: masa pajak belum lewat (jatuh tempo hari ini s.d. 60 hari ke depan), tidak ada tunggakan
           .filter((r) => r.masuk_periode_spjt && !r.lewat_jatuh_tempo && n(tagihanMap.get(r.kendaraan_id as string)?.tahun_menunggak) === 0)
           .map((r) => r.kendaraan_id as string)
       : (statusRows ?? [])
+          .filter((r) => !sudahBayar.has(r.kendaraan_id as string))
           .filter((r) => r.lewat_jatuh_tempo || n(tagihanMap.get(r.kendaraan_id as string)?.tahun_menunggak) >= 1)
           .map((r) => r.kendaraan_id as string);
 
@@ -149,34 +164,36 @@ export async function POST(req: NextRequest) {
   if (format === "pdf") buffer = (await buatPdf(data)).buffer;
   else buffer = await buatDocx(data);
 
-  // ---- Riwayat (hanya SPJT). Unduhan Word + PDF dalam 10 menit dihitung satu kali. ----
-  if (jenis === "SPJT") {
+  // ---- Riwayat (SPJT dan STPD). Unduhan Word + PDF dalam 10 menit dihitung satu kali. ----
+  {
     const batas = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     const { data: terakhir } = await supabase
       .from("riwayat_spjt")
       .select("id")
       .eq("opd_id", opdId)
+      .eq("jenis", jenis)
       .gte("created_at", batas)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (!terakhir) {
-      const { data: riwayat } = await supabase.from("riwayat_spjt").insert({ opd_id: opdId, status: "Sudah Dibuat" }).select().single();
+      const { data: riwayat } = await supabase.from("riwayat_spjt").insert({ opd_id: opdId, jenis, status: "Sudah Dibuat" }).select().single();
       if (riwayat) {
-        const idPer = new Map(kendaraan.map((k) => [k.nomor_polisi_display, k.id]));
-        await supabase.from("spjt_kendaraan").insert(
-          baris.map((b) => ({
+        const idPer = new Map<string, string>([...kendaraan, ...luarDaerah].map((k: any) => [k.nomor_polisi_display, k.id]));
+        const isi = baris
+          .filter((b) => idPer.has(b.nopol))
+          .map((b) => ({
             riwayat_spjt_id: riwayat.id,
             kendaraan_id: idPer.get(b.nopol),
             pokok_pkb_snapshot: b.pokok,
             opsen_snapshot: b.opsen,
             swdkllj_snapshot: b.swdkllj,
             total_snapshot: b.total,
-          }))
-        );
+          }));
+        if (isi.length) await supabase.from("spjt_kendaraan").insert(isi);
         await supabase.from("activity_log").insert({
-          jenis_aksi: "generate_spjt",
-          deskripsi: `Generate SPJT untuk ${opd.nama_opd} (${baris.length} kendaraan)`,
+          jenis_aksi: jenis === "SPJT" ? "generate_spjt" : "generate_stpd",
+          deskripsi: `Generate ${jenis} untuk ${opd.nama_opd} (${baris.length} kendaraan)`,
           referensi_id: riwayat.id,
           referensi_tabel: "riwayat_spjt",
         });

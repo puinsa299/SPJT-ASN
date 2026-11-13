@@ -44,9 +44,18 @@ export default async function OpdDetailPage({
     kendaraanIds.length > 0
       ? await supabase
           .from("v_kendaraan_status")
-          .select("kendaraan_id, status_kepatuhan")
+          .select("kendaraan_id, status_kepatuhan, tanggal_bayar_terakhir")
           .in("kendaraan_id", kendaraanIds)
       : { data: [] };
+  const { data: suratList } =
+    kendaraanIds.length > 0
+      ? await supabase
+          .from("v_kendaraan_surat_terakhir")
+          .select("kendaraan_id, tanggal_spjt_terakhir, tanggal_stpd_terakhir")
+          .in("kendaraan_id", kendaraanIds)
+      : { data: [] };
+  const suratMap = new Map((suratList ?? []).map((s: any) => [s.kendaraan_id, s]));
+  const bayarMap = new Map((statusList ?? []).map((s: any) => [s.kendaraan_id, s.tanggal_bayar_terakhir as string | null]));
 
   const statusMap = new Map((statusList ?? []).map((s) => [s.kendaraan_id, s.status_kepatuhan]));
 
@@ -120,6 +129,9 @@ export default async function OpdDetailPage({
               <th>Model</th>
               <th>Tahun</th>
               <th>Jatuh tempo</th>
+              <th>Tgl SPJT</th>
+              <th>Tgl STPD</th>
+              <th>Tgl bayar</th>
               <th>Status</th>
               <th>Aksi</th>
             </tr>
@@ -134,7 +146,16 @@ export default async function OpdDetailPage({
                 <td>{k.merk}</td>
                 <td>{k.model}</td>
                 <td>{k.tahun}</td>
-                <td>{k.jatuh_tempo ?? "-"}</td>
+                <td>{tgl(k.jatuh_tempo)}</td>
+                <td>{tgl(suratMap.get(k.id)?.tanggal_spjt_terakhir)}</td>
+                <td>{tgl(suratMap.get(k.id)?.tanggal_stpd_terakhir)}</td>
+                <td>
+                  <TglBayar
+                    bayar={bayarMap.get(k.id) ?? null}
+                    spjt={suratMap.get(k.id)?.tanggal_spjt_terakhir ?? null}
+                    stpd={suratMap.get(k.id)?.tanggal_stpd_terakhir ?? null}
+                  />
+                </td>
                 <td>
                   <StatusBadge status={statusMap.get(k.id) ?? k.status} />
                 </td>
@@ -145,7 +166,7 @@ export default async function OpdDetailPage({
             ))}
             {(!kendaraanList || kendaraanList.length === 0) && (
               <tr>
-                <td colSpan={9} className="text-center text-muted py-6">
+                <td colSpan={13} className="text-center text-muted py-6">
                   {searchParams.q ? "Tidak ada kendaraan yang cocok" : "Belum ada kendaraan terdata untuk OPD ini"}
                 </td>
               </tr>
@@ -226,5 +247,24 @@ function VehicleActions({ kendaraanId, opdId }: { kendaraanId: string; opdId: st
         Ubah status
       </a>
     </div>
+  );
+}
+
+// yyyy-mm-dd -> dd/mm/yyyy
+function tgl(v: string | null | undefined) {
+  if (!v) return "-";
+  const [y, m, d] = String(v).slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
+
+// Tanggal bayar terakhir. Hijau bila pembayaran terjadi setelah SPJT/STPD terakhir diterbitkan.
+function TglBayar({ bayar, spjt, stpd }: { bayar: string | null; spjt: string | null; stpd: string | null }) {
+  if (!bayar) return <span className="text-muted">-</span>;
+  const surat = [spjt, stpd].filter(Boolean).sort().pop() as string | undefined;
+  const setelahSurat = !!surat && bayar >= surat;
+  return (
+    <span className={setelahSurat ? "text-emerald-700 font-medium" : ""} title={setelahSurat ? "Dibayar setelah surat diterbitkan" : undefined}>
+      {tgl(bayar)}
+    </span>
   );
 }

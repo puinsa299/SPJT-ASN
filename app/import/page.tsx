@@ -1,5 +1,6 @@
 import ImportBesar from "@/components/ImportBesar";
-import { Database, Receipt, ClipboardEdit, Tag, Upload, CheckCircle2, Calculator, Palette } from "lucide-react";
+import ImportHasilCek from "@/components/ImportHasilCek";
+import { Database, Receipt, FileCheck2, ClipboardEdit, Tag, Upload, CheckCircle2, Calculator, Palette } from "lucide-react";
 
 const IMPORT_TYPES = [
   {
@@ -149,6 +150,26 @@ export default function ImportPage({
           dikirim bertahap, jadi aman untuk file besar. Aman diulang.
         </p>
         <ImportBesar jenis="transaksi" />
+      </div>
+
+      {/* Hasil cek SPJT/STPD — pratinjau dulu, perubahan baru disimpan setelah "Terapkan" */}
+      <div className="panel p-5">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="icon-chip bg-primary-100 text-primary-700 w-9 h-9">
+            <FileCheck2 size={16} />
+          </div>
+          <h2 className="text-sm font-semibold">Import Hasil Cek SPJT/STPD (Realisasi &amp; Jatuh Tempo)</h2>
+        </div>
+        <ul className="text-xs text-muted mb-4 list-disc pl-4 space-y-1">
+          <li>Pakai file HASIL_CEK (sheet HASIL). Kolom wajib: NOPOL dan Status.</li>
+          <li>SUDAH DIBAYAR: realisasi dicatat (tanggal bayar = TG BAYAR, masa akhir = TG AKHIR PKB, tanpa nominal) dan jatuh tempo diubah ke TG AKHIR PKB.</li>
+          <li>BAYAR SEBAGIAN: hanya jatuh tempo yang diubah, realisasi tidak dicatat.</li>
+          <li>SESUAI, TANGGAL BERBEDA, DATA BERBEDA: jatuh tempo diubah hanya bila berbeda dari data aplikasi; realisasi tidak dicatat.</li>
+          <li>TIDAK DITEMUKAN, GAGAL DIPROSES, TIDAK DICEK, GANTI NOPOL: dilewati dan masuk laporan.</li>
+          <li>Nopol yang tidak ada di aplikasi tidak dibuat baru. Aman diimpor berulang, realisasi tidak dobel.</li>
+          <li>Pratinjau tidak mengubah data. Unduh cadangan dulu (menu Export Data) sebelum menerapkan.</li>
+        </ul>
+        <ImportHasilCek />
       </div>
 
       {/* Database Master — form khusus, ada pilihan kategori */}

@@ -14,19 +14,20 @@ export default async function RiwayatSpjtPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold">Riwayat SPJT</h1>
-        <p className="text-sm text-muted">Jejak penerbitan SPJT & status pengirimannya.</p>
+        <h1 className="text-xl font-bold">Riwayat SPJT &amp; STPD</h1>
+        <p className="text-sm text-muted">Jejak penerbitan SPJT/STPD & status pengirimannya.</p>
       </div>
 
       <div className="panel overflow-x-auto">
         <div className="panel-head">
           <History size={16} className="text-primary-600" />
-          Daftar SPJT diterbitkan
+          Daftar surat diterbitkan
         </div>
         <table className="w-full table-clean">
           <thead>
             <tr>
               <th>Tanggal terbit</th>
+              <th>Jenis</th>
               <th>OPD</th>
               <th>Jumlah kendaraan</th>
               <th>Status</th>
@@ -37,6 +38,7 @@ export default async function RiwayatSpjtPage() {
             {data?.map((r: any) => (
               <tr key={r.id}>
                 <td>{r.tanggal_terbit}</td>
+                <td>{r.jenis ?? "SPJT"}</td>
                 <td className="font-medium">{r.opd?.nama_opd}</td>
                 <td>{r.spjt_kendaraan?.[0]?.count ?? 0}</td>
                 <td>
